@@ -25,13 +25,16 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
                 roles = (
                     await connection.execute(
                         text(
-                            "SELECT rolname, rolsuper, rolbypassrls FROM pg_roles "
-                            "WHERE rolname IN ('agentdock_runtime', 'agentdock_worker')"
+                            "SELECT rolname, rolsuper, rolbypassrls, rolcanlogin FROM pg_roles "
+                            "WHERE rolname IN ('agentdock_runtime', 'agentdock_worker', 'agentdock_dispatcher')"
                         )
                     )
                 ).all()
-                assert {row.rolname for row in roles} == {"agentdock_runtime", "agentdock_worker"}
+                assert {row.rolname for row in roles} == {
+                    "agentdock_runtime", "agentdock_worker", "agentdock_dispatcher"
+                }
                 assert all(row.rolsuper is False and row.rolbypassrls is False for row in roles)
+                assert next(row for row in roles if row.rolname == "agentdock_dispatcher").rolcanlogin is False
 
                 rows = (
                     await connection.execute(
@@ -64,6 +67,11 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
                             "has_table_privilege('agentdock_runtime', 'session_tokens', 'INSERT') AS token_insert, "
                             "has_table_privilege('agentdock_runtime', 'tasks', 'INSERT') AS task_insert, "
                             "has_table_privilege('agentdock_runtime', 'alembic_version', 'SELECT') AS migration_history_read, "
+                            "has_table_privilege('agentdock_runtime', 'task_dispatch', 'INSERT') AS runtime_dispatch_insert, "
+                            "has_table_privilege('agentdock_dispatcher', 'task_dispatch', 'INSERT') AS dispatcher_insert, "
+                            "has_function_privilege('agentdock_runtime', 'agentdock_private.enqueue_task_dispatch()', 'EXECUTE') AS runtime_trigger_execute, "
+                            "has_function_privilege('anon', 'agentdock_private.enqueue_task_dispatch()', 'EXECUTE') AS anon_trigger_execute, "
+                            "has_function_privilege('authenticated', 'agentdock_private.enqueue_task_dispatch()', 'EXECUTE') AS authenticated_trigger_execute, "
                             "has_schema_privilege('agentdock_runtime', 'public', 'CREATE') AS schema_create"
                         )
                     )
@@ -77,6 +85,11 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
                 assert grants.token_insert is True
                 assert grants.task_insert is True
                 assert grants.migration_history_read is False
+                assert grants.runtime_dispatch_insert is False
+                assert grants.dispatcher_insert is True
+                assert grants.runtime_trigger_execute is True
+                assert grants.anon_trigger_execute is False
+                assert grants.authenticated_trigger_execute is False
                 assert grants.schema_create is False
         finally:
             await admin_engine.dispose()
@@ -153,6 +166,19 @@ def test_tenant_context_is_transaction_local_and_blocks_cross_tenant_writes() ->
                         "user_b": user_b_id,
                     },
                 )
+
+                dispatch_rows = (
+                    await connection.execute(
+                        text(
+                            "SELECT task_id, tenant_id FROM task_dispatch "
+                            "WHERE task_id IN (:task_a, :task_b) ORDER BY task_id"
+                        ),
+                        {"task_a": task_a, "task_b": task_b},
+                    )
+                ).all()
+                assert {(row.task_id, row.tenant_id) for row in dispatch_rows} == {
+                    (task_a, tenant_a), (task_b, tenant_b)
+                }
 
                 # Tenant A's member cannot be recorded as the creator in Tenant B.
                 with pytest.raises(DBAPIError):
