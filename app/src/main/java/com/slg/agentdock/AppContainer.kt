@@ -13,6 +13,8 @@ import com.slg.agentdock.data.auth.android.AppAuthOidcClient
 import com.slg.agentdock.data.auth.android.DataStoreSecureBlob
 import com.slg.agentdock.data.auth.android.KeystoreKey
 import com.slg.agentdock.data.auth.android.OidcClient
+import com.slg.agentdock.data.tasks.HttpTaskRepository
+import com.slg.agentdock.data.tasks.TaskRepository
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -26,6 +28,7 @@ class AuthServices(
     /** Carries the session bearer token and refreshes it; use for AgentDock API calls only. */
     val apiHttp: OkHttpClient,
     val json: Json,
+    val tasks: TaskRepository,
 )
 
 /** Manual dependency container; wiring stays in one reviewable place. */
@@ -67,15 +70,17 @@ class AppContainer(context: Context) {
             store = store,
             api = HttpAuthApi(baseClient, config.apiBaseUrl.toHttpUrl(), json),
         )
+        val apiHttp = baseClient.newBuilder()
+            .addInterceptor(BearerInterceptor(sessions))
+            .authenticator(SessionAuthenticator(sessions))
+            .build()
         AuthServices(
             config = config,
             sessions = sessions,
             oidc = AppAuthOidcClient(appContext, config),
-            apiHttp = baseClient.newBuilder()
-                .addInterceptor(BearerInterceptor(sessions))
-                .authenticator(SessionAuthenticator(sessions))
-                .build(),
+            apiHttp = apiHttp,
             json = json,
+            tasks = HttpTaskRepository(apiHttp, config.apiBaseUrl.toHttpUrl(), json),
         )
     }
 }

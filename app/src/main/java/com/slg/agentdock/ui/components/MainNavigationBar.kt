@@ -4,6 +4,7 @@ package com.slg.agentdock.ui.components
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -20,6 +21,7 @@ import com.slg.agentdock.R
 
 private const val ROUTE_HOME = "home"
 private const val ROUTE_TABS = "tabs"
+private const val ROUTE_ACTIVITY = "activity"
 private const val ROUTE_SETTINGS = "settings"
 
 @Composable
@@ -44,6 +46,13 @@ fun MainNavigationBar(
             onClick = { onNavigate(ROUTE_TABS) },
             icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null, modifier = Modifier.size(22.dp)) },
             label = { Text(stringResource(R.string.tabs_nav)) },
+        )
+        NavigationBarItem(
+            modifier = Modifier.testTag("navigation.activity"),
+            selected = currentRoute == ROUTE_ACTIVITY || currentRoute?.startsWith("task/") == true,
+            onClick = { onNavigate(ROUTE_ACTIVITY) },
+            icon = { Icon(Icons.Filled.History, contentDescription = null, modifier = Modifier.size(22.dp)) },
+            label = { Text(stringResource(R.string.activity_nav)) },
         )
         NavigationBarItem(
             modifier = Modifier.testTag("navigation.settings"),

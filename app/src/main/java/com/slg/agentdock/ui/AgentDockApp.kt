@@ -37,7 +37,18 @@ import com.slg.agentdock.R
 import com.slg.agentdock.ui.components.AppHeader
 import com.slg.agentdock.ui.components.MainNavigationBar
 import com.slg.agentdock.ui.components.WorkspaceTabStrip
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
+import com.slg.agentdock.data.tasks.TaskRepository
 import com.slg.agentdock.ui.auth.AuthEvent
+import com.slg.agentdock.ui.auth.AuthStatus
+import com.slg.agentdock.ui.screens.ActivityScreen
+import com.slg.agentdock.ui.screens.TaskDetailScreen
+import com.slg.agentdock.ui.screens.TaskListSection
+import com.slg.agentdock.ui.tasks.TaskDetailViewModel
+import com.slg.agentdock.ui.tasks.TasksEvent
+import com.slg.agentdock.ui.tasks.TasksViewModel
 import com.slg.agentdock.ui.auth.AuthViewModel
 import com.slg.agentdock.ui.screens.AccountSection
 import com.slg.agentdock.ui.screens.HomeScreen
@@ -51,16 +62,25 @@ private const val ROUTE_HOME = "home"
 private const val ROUTE_TABS = "tabs"
 private const val ROUTE_WORKSPACE = "workspace"
 private const val ROUTE_SETTINGS = "settings"
+private const val ROUTE_ACTIVITY = "activity"
+private const val ROUTE_TASK = "task/{taskId}"
+
+private fun taskRoute(taskId: String) = "task/$taskId"
 
 @Composable
-fun AgentDockApp(viewModel: AgentDockViewModel, authViewModel: AuthViewModel) {
+fun AgentDockApp(
+    viewModel: AgentDockViewModel,
+    authViewModel: AuthViewModel,
+    tasksViewModel: TasksViewModel,
+    taskRepository: TaskRepository?,
+) {
     val chromeState by viewModel.chromeState.collectAsStateWithLifecycle()
     AgentDockTheme(
         themeMode = chromeState.preferences.themeMode,
         accentColor = chromeState.preferences.accentColor,
         fontScale = chromeState.preferences.fontScale,
     ) {
-        AgentDockAppContent(viewModel, authViewModel, chromeState)
+        AgentDockAppContent(viewModel, authViewModel, tasksViewModel, taskRepository, chromeState)
     }
 }
 
@@ -68,6 +88,8 @@ fun AgentDockApp(viewModel: AgentDockViewModel, authViewModel: AuthViewModel) {
 private fun AgentDockAppContent(
     viewModel: AgentDockViewModel,
     authViewModel: AuthViewModel,
+    tasksViewModel: TasksViewModel,
+    taskRepository: TaskRepository?,
     chromeState: AgentDockChromeState,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -83,6 +105,20 @@ private fun AgentDockAppContent(
     val browserLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result -> authViewModel.onBrowserResult(result.data) }
+
+    LaunchedEffect(tasksViewModel) {
+        tasksViewModel.events.collect { event ->
+            when (event) {
+                is TasksEvent.Submitted -> {
+                    // The server owns the task now; the local draft has served its purpose.
+                    viewModel.updateDraft(event.draftId, "")
+                    navController.navigate(taskRoute(event.taskId)) {
+                        launchSingleTop = true
+                    }
+                }
+            }
+        }
+    }
 
     LaunchedEffect(authViewModel) {
         authViewModel.events.collect { event ->
@@ -183,6 +219,9 @@ private fun AgentDockAppContent(
                 composable(ROUTE_HOME) {
                     HomeDestination(
                         viewModel = viewModel,
+                        authViewModel = authViewModel,
+                        tasksViewModel = tasksViewModel,
+                        onOpenTask = { navController.navigate(taskRoute(it)) { launchSingleTop = true } },
                         onDraftChange = viewModel::updateDraft,
                         onSaveDraft = {
                             feedback()
@@ -219,6 +258,23 @@ private fun AgentDockAppContent(
                         },
                     )
                 }
+                composable(ROUTE_ACTIVITY) {
+                    ActivityDestination(
+                        authViewModel = authViewModel,
+                        tasksViewModel = tasksViewModel,
+                        onOpenTask = { navController.navigate(taskRoute(it)) { launchSingleTop = true } },
+                    )
+                }
+                composable(ROUTE_TASK) { entry ->
+                    val taskId = entry.arguments?.getString("taskId").orEmpty()
+                    val detailModel: TaskDetailViewModel = composeViewModel(
+                        key = "task-$taskId",
+                        factory = TaskDetailViewModel.Factory(taskRepository, taskId),
+                    )
+                    val detailState by detailModel.state.collectAsStateWithLifecycle()
+                    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { detailModel.refresh() }
+                    TaskDetailScreen(state = detailState, onRefresh = detailModel::refresh)
+                }
                 composable(ROUTE_SETTINGS) {
                     SettingsDestination(
                         viewModel = viewModel,
@@ -239,11 +295,57 @@ private fun AgentDockAppContent(
 @Composable
 private fun HomeDestination(
     viewModel: AgentDockViewModel,
+    authViewModel: AuthViewModel,
+    tasksViewModel: TasksViewModel,
+    onOpenTask: (String) -> Unit,
     onDraftChange: (String, String) -> Unit,
     onSaveDraft: () -> Unit,
 ) {
     val tab by viewModel.activeTab.collectAsStateWithLifecycle()
-    tab?.let { HomeScreen(tab = it, onDraftChange = onDraftChange, onSaveDraft = onSaveDraft) }
+    val authState by authViewModel.uiState.collectAsStateWithLifecycle()
+    val list by tasksViewModel.list.collectAsStateWithLifecycle()
+    val submit by tasksViewModel.submit.collectAsStateWithLifecycle()
+    val signedIn = authState.status == AuthStatus.SIGNED_IN
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { tasksViewModel.refresh() }
+    tab?.let { current ->
+        HomeScreen(
+            tab = current,
+            onDraftChange = onDraftChange,
+            onSaveDraft = onSaveDraft,
+            signedIn = signedIn,
+            submitState = submit,
+            onSubmit = { tasksViewModel.submit(current.id, current.draft) },
+            onDismissSubmitError = tasksViewModel::dismissSubmitError,
+            recentTasks = {
+                TaskListSection(
+                    state = list,
+                    signedIn = signedIn,
+                    onOpen = onOpenTask,
+                    onRefresh = tasksViewModel::refresh,
+                    onLoadMore = tasksViewModel::loadMore,
+                    maxItems = 5,
+                )
+            },
+        )
+    }
+}
+
+@Composable
+private fun ActivityDestination(
+    authViewModel: AuthViewModel,
+    tasksViewModel: TasksViewModel,
+    onOpenTask: (String) -> Unit,
+) {
+    val authState by authViewModel.uiState.collectAsStateWithLifecycle()
+    val list by tasksViewModel.list.collectAsStateWithLifecycle()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { tasksViewModel.refresh() }
+    ActivityScreen(
+        state = list,
+        signedIn = authState.status == AuthStatus.SIGNED_IN,
+        onOpen = onOpenTask,
+        onRefresh = tasksViewModel::refresh,
+        onLoadMore = tasksViewModel::loadMore,
+    )
 }
 
 @Composable

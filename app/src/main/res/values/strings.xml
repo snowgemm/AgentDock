@@ -110,4 +110,42 @@
     <string name="account_error_session_expired">Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.</string>
     <string name="account_error_unexpected">Đăng nhập không thành công. Hãy thử lại.</string>
 
+    <string name="status_queued">Đã nhận · chưa thực thi</string>
+    <string name="status_queued_explanation">Máy chủ đã lưu tác vụ này nhưng chưa có tiến trình nào bắt đầu thực thi nó.</string>
+    <string name="status_planning">Đang lập kế hoạch</string>
+    <string name="status_running">Đang chạy</string>
+    <string name="status_waiting_approval">Chờ phê duyệt</string>
+    <string name="status_verifying">Đang kiểm chứng</string>
+    <string name="status_succeeded">Hoàn thành</string>
+    <string name="status_failed">Thất bại</string>
+    <string name="status_cancelled">Đã hủy</string>
+    <string name="status_paused">Tạm dừng</string>
+    <string name="status_retrying">Đang thử lại</string>
+    <string name="status_recovering">Đang khôi phục</string>
+    <string name="status_expired">Hết hạn</string>
+    <string name="status_unknown">Trạng thái không xác định</string>
+    <string name="error_auth_required">Phiên đăng nhập không còn hợp lệ. Đăng nhập lại trong Cài đặt rồi thử lại.</string>
+    <string name="error_offline">Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại; nội dung của bạn vẫn còn trong bản nháp.</string>
+    <string name="error_server">Máy chủ đang gặp sự cố. Hãy thử lại sau ít phút.</string>
+    <string name="error_not_found">Không tìm thấy tác vụ này trong không gian làm việc của bạn.</string>
+    <string name="error_conflict">Yêu cầu này xung đột với một lần gửi trước đó. Hãy sửa nội dung rồi gửi lại.</string>
+    <string name="error_invalid">Máy chủ từ chối nội dung này. Kiểm tra độ dài và nội dung rồi thử lại.</string>
+    <string name="error_malformed">Phản hồi của máy chủ không đọc được. Hãy cập nhật ứng dụng hoặc thử lại sau.</string>
+    <string name="retry">Thử lại</string>
+    <string name="refresh">Làm mới</string>
+    <string name="submit_task">Gửi tác vụ lên máy chủ</string>
+    <string name="submitting_task">Đang gửi…</string>
+    <string name="draft_vs_server_notice">Bản nháp chỉ nằm trên thiết bị cho tới khi bạn gửi. Sau khi máy chủ nhận, tác vụ xuất hiện bên dưới và tiếp tục tồn tại ngay cả khi bạn đóng ứng dụng.</string>
+    <string name="tasks_loading">Đang tải…</string>
+    <string name="tasks_load_more">Tải thêm</string>
+    <string name="tasks_signed_out_title">Đăng nhập để xem tác vụ</string>
+    <string name="tasks_signed_out_body">Tác vụ trên máy chủ chỉ hiển thị sau khi bạn đăng nhập trong Cài đặt.</string>
+    <string name="activity_nav">Hoạt động</string>
+    <string name="activity_title">Hoạt động</string>
+    <string name="activity_description">Các tác vụ đã được gửi lên máy chủ AgentDock, mới nhất trước.</string>
+    <string name="task_request_heading">Yêu cầu</string>
+    <string name="timeline_heading">Dòng thời gian</string>
+    <string name="timeline_empty">Chưa có sự kiện nào.</string>
+    <string name="event_task_created">Tác vụ đã được máy chủ nhận</string>
+
 </resources>

@@ -32,6 +32,13 @@ class AgentDockNavigationTest {
     }
 
     @Test
+    fun activityTabExplainsThatSignInIsNeededForServerTasks() {
+        composeRule.onNodeWithTag("navigation.activity").performClick()
+        composeRule.onNodeWithTag("activity.screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("tasks.list").assertIsDisplayed()
+    }
+
+    @Test
     fun settingsShowsSignInNotConfiguredWhenBuildHasNoProvider() {
         composeRule.onNodeWithTag("navigation.settings").performClick()
         composeRule.onNodeWithTag("account.notConfigured").assertIsDisplayed()

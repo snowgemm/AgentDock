@@ -110,4 +110,42 @@
     <string name="account_error_session_expired">Your session has expired. Sign in again.</string>
     <string name="account_error_unexpected">Sign-in did not complete. Try again.</string>
 
+    <string name="status_queued">Accepted · not executing yet</string>
+    <string name="status_queued_explanation">The server has stored this task, but nothing has started executing it yet.</string>
+    <string name="status_planning">Planning</string>
+    <string name="status_running">Running</string>
+    <string name="status_waiting_approval">Waiting for approval</string>
+    <string name="status_verifying">Verifying</string>
+    <string name="status_succeeded">Completed</string>
+    <string name="status_failed">Failed</string>
+    <string name="status_cancelled">Cancelled</string>
+    <string name="status_paused">Paused</string>
+    <string name="status_retrying">Retrying</string>
+    <string name="status_recovering">Recovering</string>
+    <string name="status_expired">Expired</string>
+    <string name="status_unknown">Unknown status</string>
+    <string name="error_auth_required">Your session is no longer valid. Sign in again in Settings, then retry.</string>
+    <string name="error_offline">Could not reach the server. Check your connection and retry; your text is still in the draft.</string>
+    <string name="error_server">The server had a problem. Try again in a few minutes.</string>
+    <string name="error_not_found">This task was not found in your workspace.</string>
+    <string name="error_conflict">This request conflicts with an earlier submission. Edit the text and send it again.</string>
+    <string name="error_invalid">The server rejected this content. Check its length and text, then retry.</string>
+    <string name="error_malformed">The server\'s response could not be read. Update the app or try again later.</string>
+    <string name="retry">Retry</string>
+    <string name="refresh">Refresh</string>
+    <string name="submit_task">Send task to server</string>
+    <string name="submitting_task">Sending…</string>
+    <string name="draft_vs_server_notice">A draft stays on this device until you send it. Once the server accepts it, the task appears below and survives closing the app.</string>
+    <string name="tasks_loading">Loading…</string>
+    <string name="tasks_load_more">Load more</string>
+    <string name="tasks_signed_out_title">Sign in to see tasks</string>
+    <string name="tasks_signed_out_body">Server tasks appear after you sign in from Settings.</string>
+    <string name="activity_nav">Activity</string>
+    <string name="activity_title">Activity</string>
+    <string name="activity_description">Tasks sent to your AgentDock server, newest first.</string>
+    <string name="task_request_heading">Request</string>
+    <string name="timeline_heading">Timeline</string>
+    <string name="timeline_empty">No events yet.</string>
+    <string name="event_task_created">Task accepted by the server</string>
+
 </resources>

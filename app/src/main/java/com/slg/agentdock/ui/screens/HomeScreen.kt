@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -30,12 +31,24 @@ import androidx.compose.ui.unit.dp
 import com.slg.agentdock.R
 import com.slg.agentdock.data.model.WorkspaceTab
 import com.slg.agentdock.ui.components.EmptyState
+import com.slg.agentdock.ui.tasks.SubmitUiState
+import com.slg.agentdock.ui.tasks.messageRes
 
 @Composable
 fun HomeScreen(
     tab: WorkspaceTab,
     onDraftChange: (String, String) -> Unit,
     onSaveDraft: () -> Unit,
+    signedIn: Boolean = false,
+    submitState: SubmitUiState = SubmitUiState(),
+    onSubmit: () -> Unit = {},
+    onDismissSubmitError: () -> Unit = {},
+    recentTasks: @Composable () -> Unit = {
+        EmptyState(
+            title = stringResource(R.string.no_tasks_title),
+            description = stringResource(R.string.no_tasks_description),
+        )
+    },
 ) {
     Column(
         modifier = Modifier
@@ -96,10 +109,41 @@ fun HomeScreen(
                     Text(stringResource(R.string.save_draft), fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.height(10.dp))
+                if (signedIn) {
+                    Button(
+                        onClick = onSubmit,
+                        enabled = tab.draft.isNotBlank() && !submitState.submitting,
+                        modifier = Modifier.fillMaxWidth().testTag("home.submitTask"),
+                        contentPadding = PaddingValues(vertical = 13.dp),
+                    ) {
+                        Text(
+                            stringResource(
+                                if (submitState.submitting) R.string.submitting_task else R.string.submit_task,
+                            ),
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    submitState.error?.let { error ->
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = stringResource(error.messageRes()),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.testTag("home.submitError"),
+                        )
+                        TextButton(onClick = onDismissSubmitError) {
+                            Text(stringResource(R.string.account_dismiss))
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
                 Text(
-                    text = stringResource(R.string.local_draft_notice),
+                    text = stringResource(
+                        if (signedIn) R.string.draft_vs_server_notice else R.string.local_draft_notice,
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("home.draftNotice"),
                 )
             }
         }
@@ -110,9 +154,6 @@ fun HomeScreen(
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.height(12.dp))
-        EmptyState(
-            title = stringResource(R.string.no_tasks_title),
-            description = stringResource(R.string.no_tasks_description),
-        )
+        recentTasks()
     }
 }
