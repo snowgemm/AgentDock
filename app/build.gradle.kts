@@ -147,8 +147,8 @@ dependencies {
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
-    implementation("com.squareup.okhttp3:okhttp:5.5.1")
-    implementation("com.squareup.okhttp3:okhttp-sse:5.5.1")
+    implementation("com.squareup.okhttp3:okhttp:5.4.0")
+    implementation("com.squareup.okhttp3:okhttp-sse:5.4.0")
     implementation("net.openid:appauth:0.11.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
@@ -156,7 +156,7 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
-    testImplementation("com.squareup.okhttp3:mockwebserver3:5.5.1")
+    testImplementation("com.squareup.okhttp3:mockwebserver3:5.4.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
