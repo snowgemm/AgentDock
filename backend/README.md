@@ -24,11 +24,11 @@ This is a backend identity/session and initial task API foundation, not a comple
 
 Use different database principals for migrations and normal API/worker traffic:
 
-- The migration role owns the schema objects and is used only by Alembic deployments.
+- The migration role owns the schema objects it creates and is used only by Alembic deployments. Grant it `USAGE, CREATE` on the schema rather than changing the schema owner. On Supabase, leave the managed `public` schema owned by `pg_database_owner`; do not transfer schema ownership away from Supabase's managed role.
 - The runtime role must be `NOSUPERUSER NOBYPASSRLS`, must not own tenant tables, and receives only the required table DML grants.
 - Never run the API as the PostgreSQL superuser or migration owner.
 
-The migration applies `ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY` to `tenant_memberships`, `tasks`, `task_events` and `idempotency_records`. Policies fail closed when the transaction has no `app.current_tenant_id`.
+Alembic applies `ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY` to all tenant-owned tables: `tenant_memberships`, `tasks`, `task_events`, `idempotency_records`, `task_receipts`, `task_checkpoints`, `approvals` and `audit_events`. Policies fail closed when the transaction has no `app.current_tenant_id`. The `task_dispatch` table is deliberately not tenant-RLS protected because it contains only worker routing/lease metadata; never add task prompts, results or other tenant content to it.
 
 Every tenant query must run in an explicit transaction and set its scope with `set_tenant_context(session, tenant_id)`. Resolve and authorize the user's membership on the server before setting this value; never trust a tenant ID supplied by the client. RLS is a database isolation boundary, not a replacement for authentication or authorization. PostgreSQL superusers and roles with `BYPASSRLS` can bypass policies.
 
@@ -37,8 +37,8 @@ Example role setup (execute as a database administrator after creating the datab
 ```sql
 CREATE ROLE agentdock_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
 CREATE ROLE agentdock_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-ALTER SCHEMA public OWNER TO agentdock_migrator;
 GRANT CONNECT ON DATABASE agentdock TO agentdock_migrator, agentdock_runtime;
+GRANT USAGE, CREATE ON SCHEMA public TO agentdock_migrator;
 GRANT USAGE ON SCHEMA public TO agentdock_runtime;
 ```
 
