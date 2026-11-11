@@ -22,16 +22,16 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
         admin_engine = create_async_engine(ADMIN_DATABASE_URL, pool_pre_ping=True)
         try:
             async with admin_engine.connect() as connection:
-                role = (
+                roles = (
                     await connection.execute(
                         text(
-                            "SELECT rolsuper, rolbypassrls FROM pg_roles "
-                            "WHERE rolname = 'agentdock_runtime'"
+                            "SELECT rolname, rolsuper, rolbypassrls FROM pg_roles "
+                            "WHERE rolname IN ('agentdock_runtime', 'agentdock_worker')"
                         )
                     )
-                ).one()
-                assert role.rolsuper is False
-                assert role.rolbypassrls is False
+                ).all()
+                assert {row.rolname for row in roles} == {"agentdock_runtime", "agentdock_worker"}
+                assert all(row.rolsuper is False and row.rolbypassrls is False for row in roles)
 
                 rows = (
                     await connection.execute(
@@ -42,11 +42,12 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
                             "WHERE relnamespace = 'public'::regnamespace "
                             "AND relname IN "
                             "('tenant_memberships', 'tasks', 'task_events', "
-                            "'idempotency_records')"
+                            "'idempotency_records', 'task_receipts', 'task_checkpoints', "
+                            "'approvals', 'audit_events')"
                         )
                     )
                 ).all()
-                assert len(rows) == 4
+                assert len(rows) == 8
                 assert all(row.relrowsecurity and row.relforcerowsecurity for row in rows)
                 assert all(row.owner == "agentdock_migrator" for row in rows)
 
