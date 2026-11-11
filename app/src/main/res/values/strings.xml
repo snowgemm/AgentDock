@@ -157,4 +157,20 @@
     <string name="stream_failed">Không thể theo dõi tác vụ này</string>
     <string name="timeline_new">Mới</string>
 
+    <string name="event_task_started">Một tiến trình đã bắt đầu xử lý</string>
+    <string name="event_task_recovering">Khôi phục sau khi tiến trình trước bị gián đoạn</string>
+    <string name="event_task_retry">Gặp lỗi tạm thời · sẽ thử lại</string>
+    <string name="event_task_verifying">Đang kiểm chứng kết quả</string>
+    <string name="event_task_succeeded">Hoàn thành</string>
+    <string name="event_task_failed">Thất bại</string>
+    <string name="event_agent_started">Agent bắt đầu làm việc</string>
+    <string name="event_agent_model_call">Agent gọi mô hình</string>
+    <string name="event_agent_tool_call">Agent đọc ngữ cảnh của tác vụ</string>
+    <string name="event_agent_tool_rejected">Một lời gọi công cụ không hợp lệ đã bị từ chối</string>
+    <string name="event_agent_result">Đã có câu trả lời</string>
+    <string name="result_heading">Kết quả</string>
+    <string name="result_verified">Đã qua kiểm tra cấu trúc</string>
+    <string name="result_not_verified">Chưa được xác minh · chỉ hiển thị để tham khảo</string>
+    <string name="result_verification_note">Kiểm tra cấu trúc xác nhận câu trả lời đầy đủ, nằm trong ngân sách và có bằng chứng ghi nhận. Nó không đảm bảo nội dung đúng; hãy tự kiểm tra trước khi dựa vào kết quả.</string>
+
 </resources>

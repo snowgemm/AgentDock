@@ -157,4 +157,20 @@
     <string name="stream_failed">This task cannot be followed</string>
     <string name="timeline_new">New</string>
 
+    <string name="event_task_started">A worker started processing</string>
+    <string name="event_task_recovering">Recovering after the previous worker was interrupted</string>
+    <string name="event_task_retry">Temporary error · will retry</string>
+    <string name="event_task_verifying">Verifying the result</string>
+    <string name="event_task_succeeded">Completed</string>
+    <string name="event_task_failed">Failed</string>
+    <string name="event_agent_started">Agent started working</string>
+    <string name="event_agent_model_call">Agent called the model</string>
+    <string name="event_agent_tool_call">Agent read the task context</string>
+    <string name="event_agent_tool_rejected">An invalid tool call was rejected</string>
+    <string name="event_agent_result">An answer is available</string>
+    <string name="result_heading">Result</string>
+    <string name="result_verified">Passed structural verification</string>
+    <string name="result_not_verified">Not verified · shown for reference only</string>
+    <string name="result_verification_note">Structural verification confirms the answer is complete, within budget and has recorded evidence. It does not guarantee the content is correct; check it yourself before relying on it.</string>
+
 </resources>

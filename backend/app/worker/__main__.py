@@ -7,7 +7,8 @@ import signal
 
 from app.core.config import get_settings
 from app.db.session import create_database_engine, create_session_factory
-from app.worker.handlers import build_handler
+import app.agent.handler  # noqa: F401 - registers the "agent" handler
+from app.worker.handlers import HandlerNotConfigured, build_handler
 from app.worker.health import serve_health
 from app.worker.runner import Worker
 from app.worker.store import WorkerStore
@@ -22,10 +23,18 @@ async def main() -> None:
         raise SystemExit("AGENTDOCK_WORKER_DATABASE_URL is required (use the agentdock_worker role).")
 
     engine = create_database_engine(settings.worker_database_url.get_secret_value())
-    handler = build_handler(settings)
+    reason = None
+    try:
+        handler = await build_handler(settings)
+        if handler is None:
+            reason = "no-handler-configured"
+    except HandlerNotConfigured as error:
+        handler, reason = None, error.reason
+        logger.error("Worker handler not configured (%s): tasks stay QUEUED.", reason)
     if handler is None:
-        logger.warning("No AGENTDOCK_WORKER_HANDLER configured: the worker will not claim tasks.")
-    worker = Worker(settings, WorkerStore(create_session_factory(engine)), handler)
+        logger.warning("The worker will not claim tasks (%s).", reason)
+    worker = Worker(settings, WorkerStore(create_session_factory(engine)), handler,
+                    not_claiming_reason=reason)
 
     loop = asyncio.get_running_loop()
     for signal_number in (signal.SIGTERM, signal.SIGINT):

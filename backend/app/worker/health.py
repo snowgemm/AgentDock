@@ -20,7 +20,7 @@ async def serve_health(health: WorkerHealth, port: int, max_idle: float) -> asyn
                 writer.write(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
                 return
             body = json.dumps(
-                {"status": "ok" if ok else "unavailable", "claiming": health.claiming,
+                {"status": "ok" if ok else "unavailable", "claiming": health.claiming, "reason": health.reason,
                  "in_flight": health.in_flight}
             ).encode()
             status = b"200 OK" if ok else b"503 Service Unavailable"

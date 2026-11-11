@@ -54,6 +54,22 @@ class TaskDetailScreenTest {
     }
 
     @Test
+    fun agentResultIsShownWithItsVerificationStatusFromTheTimeline() {
+        val payload = kotlinx.serialization.json.Json.parseToJsonElement(
+            """{"answer":"2 + 2 = 4","verified":true}""",
+        ) as JsonObject
+        show(
+            TaskDetailUiState(
+                detail = queued,
+                events = listOf(TaskEvent("e5", 5, "AGENT_RESULT", payload, 1L)),
+                stream = StreamState.Ended,
+            ),
+        )
+        composeRule.onNodeWithTag("taskDetail.result").assertIsDisplayed()
+        composeRule.onNodeWithTag("taskDetail.resultVerification").assertIsDisplayed()
+    }
+
+    @Test
     fun reconnectingStateIsShownInsteadOfPretendingToBeLive() {
         show(TaskDetailUiState(detail = queued, stream = StreamState.Reconnecting))
         composeRule.onNodeWithTag("stream.status").assertIsDisplayed()

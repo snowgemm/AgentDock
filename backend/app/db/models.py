@@ -312,3 +312,30 @@ class TaskReceipt(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TaskCheckpoint(Base):
+    """Agent progress snapshot so a replacement worker resumes instead of starting over.
+
+    Database task status stays authoritative; this holds only the agent's working state.
+    """
+
+    __tablename__ = "task_checkpoints"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["task_id", "tenant_id"], ["tasks.id", "tasks.tenant_id"],
+            name="fk_task_checkpoints_task_tenant", ondelete="CASCADE",
+        ),
+        UniqueConstraint("tenant_id", "task_id", "iteration", name="uq_task_checkpoints_iteration"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    task_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    iteration: Mapped[int] = mapped_column(Integer, nullable=False)
+    state: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

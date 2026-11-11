@@ -19,11 +19,12 @@ from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.db.models import Task, TaskDispatch, TaskEvent, TaskReceipt
+from app.db.models import Task, TaskCheckpoint, TaskDispatch, TaskEvent, TaskReceipt
 from app.db.session import set_tenant_context
 from app.worker.handlers import LeaseLost, TaskCancelled, UncertainSideEffect
 from app.worker.transitions import (
     CLAIMABLE_STATUSES,
+    IN_FLIGHT_STATUSES,
     LEGAL_TRANSITIONS,
     TERMINAL_STATUSES,
     assert_legal,
@@ -208,7 +209,7 @@ class WorkerStore:
                 return None
 
             if lease.attempt > lease.max_attempts:
-                if task.status == "RUNNING":  # worker died mid-run with no attempts left
+                if task.status in IN_FLIGHT_STATUSES:  # worker died mid-run with no attempts left
                     await self._move(db, lease, task, "RECOVERING", "TASK_RECOVERING",
                                      {"attempt": lease.attempt})
                 await self._move(db, lease, task, "FAILED", "TASK_FAILED",
@@ -216,7 +217,7 @@ class WorkerStore:
                 self._release(dispatch, state="DONE", error="attempts_exhausted")
                 return None
 
-            if task.status == "RUNNING":
+            if task.status in IN_FLIGHT_STATUSES:
                 await self._move(db, lease, task, "RECOVERING", "TASK_RECOVERING",
                                  {"attempt": lease.attempt})
             await self._move(db, lease, task, "RUNNING", "TASK_STARTED",
@@ -287,6 +288,60 @@ class WorkerStore:
         async with self._factory() as db, db.begin():
             dispatch = await self._lock_lease(db, lease)
             self._release(dispatch, state="DONE", error=code)
+
+    # --------------------------------------------------------- checkpoints & context
+
+    async def save_checkpoint(self, lease: Lease, iteration: int, state: dict[str, Any]) -> None:
+        async with self._factory() as db, db.begin():
+            await self._lock_lease(db, lease)
+            await set_tenant_context(db, lease.tenant_id)
+            await db.execute(
+                pg_insert(TaskCheckpoint)
+                .values(tenant_id=lease.tenant_id, task_id=lease.task_id,
+                        iteration=iteration, state=state)
+                .on_conflict_do_update(
+                    constraint="uq_task_checkpoints_iteration", set_={"state": state}
+                )
+            )
+
+    async def load_checkpoint(self, lease: Lease) -> dict[str, Any] | None:
+        async with self._factory() as db, db.begin():
+            await self._lock_lease(db, lease)
+            await set_tenant_context(db, lease.tenant_id)
+            row = await db.scalar(
+                select(TaskCheckpoint.state)
+                .where(TaskCheckpoint.tenant_id == lease.tenant_id,
+                       TaskCheckpoint.task_id == lease.task_id)
+                .order_by(TaskCheckpoint.iteration.desc())
+                .limit(1)
+            )
+            return dict(row) if row is not None else None
+
+    async def read_context(self, lease: Lease, section: str, limit: int) -> dict[str, Any]:
+        """Read-only view of the *leased* task only; the task ID never comes from a caller."""
+        async with self._factory() as db, db.begin():
+            await self._lock_lease(db, lease)
+            await set_tenant_context(db, lease.tenant_id)
+            if section == "task":
+                task = await db.scalar(
+                    select(Task).where(Task.id == lease.task_id, Task.tenant_id == lease.tenant_id)
+                )
+                if task is None:
+                    raise LeaseLost
+                return {"title": task.title, "prompt": task.prompt, "status": task.status}
+            rows = (
+                await db.scalars(
+                    select(TaskEvent)
+                    .where(TaskEvent.tenant_id == lease.tenant_id, TaskEvent.task_id == lease.task_id)
+                    .order_by(TaskEvent.sequence.desc())
+                    .limit(max(1, min(limit, 20)))
+                )
+            ).all()
+            return {"events": [
+                {"sequence": e.sequence, "type": e.event_type,
+                 "payload": {k: v for k, v in e.payload.items() if k != "answer"}}
+                for e in reversed(rows)
+            ]}
 
     # ------------------------------------------------------------------ receipts
 

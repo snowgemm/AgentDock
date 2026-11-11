@@ -9,4 +9,5 @@
 - Blockers: OIDC provider registration; Android CI result unknown until pushed.
 - Stage 3 (worker): committed locally; 62 backend tests pass on local Postgres 16 incl. new tests/test_worker.py (19). Migration 20261111_0004 (downgrade tested). New role agentdock_worker (CI+README grants). Design: non-RLS task_dispatch + SECURITY DEFINER enqueue trigger; fenced lease token; receipts table.
 - Stage 4 (SSE): committed locally; backend 70 tests pass (8 new in test_task_stream.py incl. NOTIFY wake, Last-Event-ID, revalidation, cross-tenant); migration 20261111_0005 (NOTIFY trigger); Android TaskTimelineSync/SseTaskEventStream JVM-tested (61 tests); detail screen UI unverified until CI. Docs: docs/TASK_STREAM.md, docs/WORKER.md.
-- Next: Stage 5.
+- Stage 5 (agent): committed locally; backend 114 passed/1 skipped (live OpenAI test BLOCKED: no key/model). Decisions: official OpenAI SDK Responses (3.49.0), NO LangGraph (3.14 unverifiable here, heavy deps, DB owns state) -> explicit loop in app/agent/loop.py; migration 20261112_0006 task_checkpoints (+grant in CI/README); Android shows AGENT_RESULT (JVM-tested).
+- Next: Stage 6.

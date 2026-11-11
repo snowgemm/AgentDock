@@ -44,5 +44,16 @@ fun ApiError.messageRes(): Int = when (this) {
 @StringRes
 fun com.slg.agentdock.data.tasks.TaskEvent.eventLabelRes(): Int? = when (type) {
     "TASK_CREATED" -> R.string.event_task_created
+    "TASK_STARTED" -> R.string.event_task_started
+    "TASK_RECOVERING" -> R.string.event_task_recovering
+    "TASK_RETRY_SCHEDULED" -> R.string.event_task_retry
+    "TASK_VERIFYING" -> R.string.event_task_verifying
+    "TASK_SUCCEEDED" -> R.string.event_task_succeeded
+    "TASK_FAILED" -> R.string.event_task_failed
+    "AGENT_STARTED" -> R.string.event_agent_started
+    "AGENT_MODEL_CALL" -> R.string.event_agent_model_call
+    "AGENT_TOOL_CALL" -> R.string.event_agent_tool_call
+    "AGENT_TOOL_REJECTED" -> R.string.event_agent_tool_rejected
+    "AGENT_RESULT" -> R.string.event_agent_result
     else -> null
 }

@@ -48,6 +48,19 @@ class Settings(BaseSettings):
     worker_shutdown_grace_seconds: float = Field(default=20.0, ge=0, le=300)
     worker_health_port: int | None = Field(default=None, ge=1, le=65535)
 
+    # Main Agent (Stage 5). No default model: an unset model or missing OPENAI_API_KEY
+    # means "provider-not-configured" and the agent handler is not started.
+    openai_model: str | None = None
+    openai_context_window_tokens: int | None = Field(default=None, ge=1)
+    openai_input_cost_per_million: float | None = Field(default=None, ge=0)
+    openai_output_cost_per_million: float | None = Field(default=None, ge=0)
+    agent_max_iterations: int = Field(default=4, ge=1, le=20)
+    agent_max_tool_calls: int = Field(default=3, ge=0, le=20)
+    agent_max_total_tokens: int = Field(default=20_000, ge=100, le=1_000_000)
+    agent_max_output_tokens: int = Field(default=1_500, ge=16, le=32_000)
+    agent_wall_seconds: float = Field(default=120.0, ge=1, le=3600)
+    agent_model_timeout_seconds: float = Field(default=60.0, ge=1, le=600)
+
     # Server-sent events for task timelines.
     sse_heartbeat_seconds: float = Field(default=15.0, ge=0.1, le=60)
     sse_poll_seconds: float = Field(default=2.0, ge=0.05, le=30)

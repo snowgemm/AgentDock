@@ -1,6 +1,7 @@
 package com.slg.agentdock.ui.screens
 
 import android.text.format.DateUtils
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,10 +11,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -22,8 +25,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.slg.agentdock.R
+import com.slg.agentdock.data.tasks.AgentResult
 import com.slg.agentdock.data.tasks.StreamState
 import com.slg.agentdock.data.tasks.TaskEvent
+import com.slg.agentdock.data.tasks.extractAgentResult
 import com.slg.agentdock.ui.tasks.TaskDetailUiState
 import com.slg.agentdock.ui.tasks.eventLabelRes
 import com.slg.agentdock.ui.tasks.explanationRes
@@ -75,6 +80,11 @@ fun TaskDetailScreen(
             )
             Spacer(Modifier.height(4.dp))
             Text(text = detail.prompt, style = MaterialTheme.typography.bodyMedium)
+        }
+
+        extractAgentResult(state.events)?.let { result ->
+            Spacer(Modifier.height(16.dp))
+            ResultCard(result)
         }
 
         state.error?.let {
@@ -163,4 +173,39 @@ fun StreamStatusLine(state: StreamState, modifier: Modifier = Modifier) {
         else MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.padding(top = 6.dp).testTag("stream.status"),
     )
+}
+
+@Composable
+private fun ResultCard(result: AgentResult) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        modifier = Modifier.fillMaxWidth().testTag("taskDetail.result"),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = stringResource(R.string.result_heading),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = stringResource(
+                    if (result.verified) R.string.result_verified else R.string.result_not_verified,
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = if (result.verified) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.error,
+                modifier = Modifier.testTag("taskDetail.resultVerification"),
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(text = result.answer, style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.result_verification_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }

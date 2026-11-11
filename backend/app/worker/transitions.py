@@ -13,13 +13,17 @@ LEGAL_TRANSITIONS: dict[str, frozenset[str]] = {
         {"SUCCEEDED", "FAILED", "RETRYING", "RECOVERING", "VERIFYING", "WAITING_APPROVAL"}
     ),
     "RECOVERING": frozenset({"RUNNING", "FAILED"}),
-    "VERIFYING": frozenset({"SUCCEEDED", "FAILED"}),
-    "WAITING_APPROVAL": frozenset({"RUNNING", "FAILED"}),
+    "VERIFYING": frozenset({"SUCCEEDED", "FAILED", "RECOVERING"}),
+    "WAITING_APPROVAL": frozenset({"RUNNING", "FAILED", "RECOVERING"}),
 }
 
 TERMINAL_STATUSES = frozenset({"SUCCEEDED", "FAILED", "CANCELLED", "EXPIRED"})
 # Statuses from which the worker may take over a task after claiming its lease.
-CLAIMABLE_STATUSES = frozenset({"QUEUED", "RETRYING", "RUNNING", "RECOVERING"})
+CLAIMABLE_STATUSES = frozenset(
+    {"QUEUED", "RETRYING", "RUNNING", "RECOVERING", "VERIFYING", "WAITING_APPROVAL"}
+)
+# Statuses a task can be in while a (now expired) lease holder was working on it.
+IN_FLIGHT_STATUSES = frozenset({"RUNNING", "VERIFYING", "WAITING_APPROVAL"})
 
 
 class IllegalTransition(Exception):

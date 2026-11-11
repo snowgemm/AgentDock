@@ -32,6 +32,7 @@ class WorkerHealth:
     last_poll_at: float | None = None
     last_db_ok_at: float | None = None
     claiming: bool = False
+    reason: str | None = None  # why the worker is not claiming, when it is not
     in_flight: int = 0
     stopping: bool = False
 
@@ -68,6 +69,15 @@ class _Context:
     async def transition(self, target: str, event_type: str, payload: dict[str, Any]) -> None:
         await self._store.transition(self._lease, target, event_type, payload)
 
+    async def read_context(self, section: str, limit: int) -> dict[str, Any]:
+        return await self._store.read_context(self._lease, section, limit)
+
+    async def save_checkpoint(self, iteration: int, state: dict[str, Any]) -> None:
+        await self._store.save_checkpoint(self._lease, iteration, state)
+
+    async def load_checkpoint(self) -> dict[str, Any] | None:
+        return await self._store.load_checkpoint(self._lease)
+
     async def run_step(
         self,
         step_key: str,
@@ -92,13 +102,17 @@ class Worker:
         handler: TaskHandler | None,
         *,
         owner: str | None = None,
+        not_claiming_reason: str | None = None,
     ) -> None:
         self._settings = settings
         self._store = store
         self._handler = handler
         self._owner = owner or f"{socket.gethostname()}:{uuid.uuid4().hex[:8]}"
         self._stop = asyncio.Event()
-        self.health = WorkerHealth(claiming=handler is not None)
+        self.health = WorkerHealth(
+            claiming=handler is not None,
+            reason=None if handler is not None else (not_claiming_reason or "no-handler-configured"),
+        )
         self._tasks: set[asyncio.Task[None]] = set()
 
     def request_stop(self) -> None:

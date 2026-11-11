@@ -65,6 +65,14 @@ class TaskContext(Protocol):
     async def transition(self, target: str, event_type: str, payload: dict[str, Any]) -> None:
         """Move the task through the legal-transition table, appending an event."""
 
+    async def read_context(self, section: str, limit: int) -> dict[str, Any]:
+        """Read-only view of this task's own record ("task" or "recent_events")."""
+
+    async def save_checkpoint(self, iteration: int, state: dict[str, Any]) -> None:
+        """Persist agent working state; a replacement worker resumes from the latest."""
+
+    async def load_checkpoint(self) -> dict[str, Any] | None: ...
+
     async def run_step(
         self,
         step_key: str,
@@ -87,7 +95,7 @@ class TaskHandler(Protocol):
     async def run(self, context: TaskContext) -> HandlerOutcome: ...
 
 
-HandlerFactory = Callable[[Settings], TaskHandler]
+HandlerFactory = Callable[[Settings], Awaitable[TaskHandler]]
 HANDLER_FACTORIES: dict[str, HandlerFactory] = {}
 
 
@@ -95,11 +103,23 @@ def register_handler(name: str, factory: HandlerFactory) -> None:
     HANDLER_FACTORIES[name] = factory
 
 
-def build_handler(settings: Settings) -> TaskHandler | None:
-    """Return the configured handler, or None (the worker then claims nothing)."""
+class HandlerNotConfigured(RuntimeError):
+    """The worker must not claim tasks; ``reason`` is a stable operator-facing code."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+async def build_handler(settings: Settings) -> TaskHandler | None:
+    """Return the configured handler, or None (the worker then claims nothing).
+
+    Raises HandlerNotConfigured when a handler is selected but cannot be built safely
+    (for example the model provider is not configured).
+    """
     if not settings.worker_handler:
         return None
     factory = HANDLER_FACTORIES.get(settings.worker_handler)
     if factory is None:
-        raise RuntimeError("AGENTDOCK_WORKER_HANDLER names an unknown handler.")
-    return factory(settings)
+        raise HandlerNotConfigured("unknown-handler")
+    return await factory(settings)
