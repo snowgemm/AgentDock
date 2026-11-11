@@ -173,4 +173,25 @@
     <string name="result_not_verified">Chưa được xác minh · chỉ hiển thị để tham khảo</string>
     <string name="result_verification_note">Kiểm tra cấu trúc xác nhận câu trả lời đầy đủ, nằm trong ngân sách và có bằng chứng ghi nhận. Nó không đảm bảo nội dung đúng; hãy tự kiểm tra trước khi dựa vào kết quả.</string>
 
+    <string name="approval_heading">Cần bạn phê duyệt một hành động</string>
+    <string name="approval_effect">Hiệu ứng dự kiến</string>
+    <string name="approval_tool">Công cụ</string>
+    <string name="approval_target">Đối tượng bị tác động</string>
+    <string name="approval_risk">Mức rủi ro</string>
+    <string name="approval_expires">Hết hạn</string>
+    <string name="approval_action_id">Mã hành động</string>
+    <string name="approval_scope_note">Quyết định này chỉ áp dụng đúng một lần cho hành động nêu trên. Nếu nội dung thay đổi, bạn sẽ cần phê duyệt lại.</string>
+    <string name="approval_approve">Phê duyệt hành động này</string>
+    <string name="approval_deny">Từ chối</string>
+    <string name="approval_error_changed">Hành động đã thay đổi, đã hết hạn hoặc đã được xử lý nên quyết định không được ghi nhận. Hãy xem lại thông tin hiện tại.</string>
+    <string name="risk_read_only">Chỉ đọc</string>
+    <string name="risk_reversible">Có thể hoàn tác</string>
+    <string name="risk_consequential">Có hệ quả · khó hoàn tác</string>
+    <string name="risk_unknown">Không xác định</string>
+
+    <string name="event_agent_tool_denied">Một hành động bị chính sách từ chối</string>
+    <string name="event_approval_requested">Yêu cầu phê duyệt đã được tạo</string>
+    <string name="event_waiting_approval">Đang chờ bạn phê duyệt</string>
+    <string name="event_approval_resolved">Đã có quyết định phê duyệt</string>
+
 </resources>

@@ -19,7 +19,19 @@ from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.db.models import Task, TaskCheckpoint, TaskDispatch, TaskEvent, TaskReceipt
+from app.db.models import (
+    Task,
+    TaskCheckpoint,
+    TaskDispatch,
+    TaskEvent,
+    TaskReceipt,
+    TenantMembership,
+    User,
+)
+from app.policy import approvals as approval_store
+from app.policy.action import ActionRecord
+from app.policy.approvals import ApprovalRef
+from app.policy.pdp import PolicyFacts
 from app.db.session import set_tenant_context
 from app.worker.handlers import LeaseLost, TaskCancelled, UncertainSideEffect
 from app.worker.transitions import (
@@ -377,6 +389,10 @@ class WorkerStore:
                 existing.attempt = lease.attempt  # type: ignore[union-attr]
         # The STARTED receipt is committed above, before the effect runs.
         result = await effect()
+        await self._complete_receipt(lease, step_key, result)
+        return result
+
+    async def _complete_receipt(self, lease: Lease, step_key: str, result: dict[str, Any]) -> None:
         async with self._factory() as db, db.begin():
             await self._lock_lease(db, lease)
             await set_tenant_context(db, lease.tenant_id)
@@ -393,4 +409,104 @@ class WorkerStore:
                     "step_key": step_key,
                 },
             )
+
+    # ------------------------------------------------------ policy, approvals, audit
+
+    async def policy_facts(self, lease: Lease) -> PolicyFacts:
+        """Fresh identity/task facts, read under RLS and fenced by the lease."""
+        async with self._factory() as db, db.begin():
+            await self._lock_lease(db, lease)
+            await set_tenant_context(db, lease.tenant_id)
+            task = await db.scalar(
+                select(Task).where(Task.id == lease.task_id, Task.tenant_id == lease.tenant_id)
+            )
+            if task is None:
+                return PolicyFacts(False, False, None, False)
+            membership = await db.scalar(
+                select(TenantMembership.id).where(
+                    TenantMembership.tenant_id == lease.tenant_id,
+                    TenantMembership.user_id == task.created_by_user_id,
+                )
+            )
+            active = await db.scalar(select(User.is_active).where(User.id == task.created_by_user_id))
+            return PolicyFacts(membership is not None, bool(active), task.status, True)
+
+    async def audit(
+        self, lease: Lease, action: str, target: str, outcome: str,
+        details: dict[str, Any], policy_version: str | None,
+    ) -> None:
+        async with self._factory() as db, db.begin():
+            await self._lock_lease(db, lease)
+            await set_tenant_context(db, lease.tenant_id)
+            await approval_store.write_audit(
+                db, tenant_id=lease.tenant_id, task_id=lease.task_id, actor_type="agent",
+                actor_user_id=None, action=action, target=target, outcome=outcome,
+                policy_version=policy_version, details=details,
+            )
+
+    async def request_approval(
+        self, lease: Lease, action: ActionRecord, ttl_seconds: float
+    ) -> ApprovalRef:
+        async with self._factory() as db, db.begin():
+            await self._lock_lease(db, lease)
+            await set_tenant_context(db, lease.tenant_id)
+            requested_for = await db.scalar(
+                select(Task.created_by_user_id).where(
+                    Task.id == lease.task_id, Task.tenant_id == lease.tenant_id
+                )
+            )
+            if requested_for is None:
+                raise LeaseLost
+            ref = await approval_store.create_or_get_pending(
+                db, tenant_id=lease.tenant_id, task_id=lease.task_id,
+                requested_for=requested_for, action=action, ttl_seconds=ttl_seconds,
+            )
+            await approval_store.write_audit(
+                db, tenant_id=lease.tenant_id, task_id=lease.task_id, actor_type="agent",
+                actor_user_id=None, action="approval.requested", target=action.target,
+                outcome="PENDING", policy_version=action.policy_version,
+                details={"approval_id": str(ref.id), "tool": action.tool, "digest": action.digest,
+                         "risk": action.risk, "key_args": action.key_args},
+            )
+            return ref
+
+    async def get_approval(self, lease: Lease, approval_id: UUID) -> ApprovalRef:
+        async with self._factory() as db, db.begin():
+            await self._lock_lease(db, lease)
+            await set_tenant_context(db, lease.tenant_id)
+            ref = await approval_store.get_ref(db, lease.tenant_id, approval_id)
+            if ref is None:
+                raise LeaseLost
+            return ref
+
+    async def execute_approved(
+        self, lease: Lease, step_key: str, digest: str, effect
+    ) -> dict[str, Any]:
+        """Spend one matching approval and record a STARTED receipt in ONE transaction.
+
+        Either both happen or neither does, so an approval can never be consumed without
+        proof that the action began, and a begun action never runs without an approval.
+        A replayed step returns its stored result; an uncertain one is never re-run.
+        """
+        async with self._factory() as db, db.begin():
+            await self._lock_lease(db, lease)
+            await set_tenant_context(db, lease.tenant_id)
+            existing = await db.scalar(
+                select(TaskReceipt).where(
+                    TaskReceipt.tenant_id == lease.tenant_id, TaskReceipt.task_id == lease.task_id,
+                    TaskReceipt.step_key == step_key,
+                )
+            )
+            if existing is not None:
+                if existing.state == "COMPLETED":
+                    return dict(existing.result or {})
+                raise UncertainSideEffect
+            await approval_store.consume(
+                db, tenant_id=lease.tenant_id, task_id=lease.task_id, digest=digest
+            )
+            db.add(TaskReceipt(tenant_id=lease.tenant_id, task_id=lease.task_id,
+                               step_key=step_key, attempt=lease.attempt, state="STARTED"))
+            await db.flush()
+        result = await effect()
+        await self._complete_receipt(lease, step_key, result)
         return result

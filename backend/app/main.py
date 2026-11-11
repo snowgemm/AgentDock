@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.api.v1.approvals import router as approvals_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.health import router as health_router
 from app.api.v1.task_stream import router as task_stream_router
@@ -53,6 +54,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.oidc_jwks_client = create_jwks_client(configuration)
     application.include_router(health_router, prefix="/api/v1")
     application.include_router(auth_router, prefix="/api/v1")
+    application.include_router(approvals_router, prefix="/api/v1")
     application.include_router(task_stream_router, prefix="/api/v1")
     application.include_router(tasks_router, prefix="/api/v1")
     return application

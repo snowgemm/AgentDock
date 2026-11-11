@@ -16,6 +16,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.agent.gateway import ToolSpec
+from app.policy.redact import redact
 from app.worker.handlers import TaskContext
 
 
@@ -40,6 +41,15 @@ class ToolInvocation:
 
 
 @dataclass(frozen=True, slots=True)
+class ActionDescription:
+    """Server-side description of what a validated call would do, for policy and approvers."""
+
+    target: str
+    summary: str
+    key_args: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
 class ToolDefinition:
     name: str
     description: str
@@ -50,6 +60,14 @@ class ToolDefinition:
     timeout_seconds: float = 5.0
     max_output_chars: int = 4000
     enabled: bool = True
+    describe: Callable[[BaseModel], ActionDescription] | None = None
+    # True only if running the same call twice has the same effect as once.
+    idempotent: bool = False
+
+    def action_description(self, arguments: BaseModel) -> ActionDescription:
+        if self.describe is not None:
+            return self.describe(arguments)
+        return ActionDescription(f"tool:{self.name}", self.description[:200], arguments.model_dump(mode="json"))
 
     def spec(self) -> ToolSpec:
         schema = self.args_model.model_json_schema()
@@ -92,6 +110,7 @@ class ToolRegistry:
 
 
 def wrap_tool_output(source: str, data: Any, max_chars: int) -> str:
+    data = redact(data)
     text = json.dumps(data, default=str, separators=(",", ":"), ensure_ascii=False)
     truncated = len(text) > max_chars
     envelope = {"trust": "untrusted_data", "source": source, "truncated": truncated,
@@ -130,7 +149,10 @@ def default_tools() -> ToolRegistry:
                 args_model=GetTaskContextArgs,
                 execute=_get_task_context,
                 risk=RiskClass.READ_ONLY,
-                resource_scopes=("task:self:read",),
+                resource_scopes=("task:self",),
+                describe=lambda _args: ActionDescription(
+                    "task:self", "Read this task's own record (read-only).", {}
+                ),
             )
         ]
     )

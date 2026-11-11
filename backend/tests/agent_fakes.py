@@ -70,6 +70,7 @@ class FakeContext:
     checkpoints: dict[int, dict[str, Any]] = field(default_factory=dict)
     transitions: list[str] = field(default_factory=list)
     cancelled: bool = False
+    audits: list[tuple[str, str]] = field(default_factory=list)
 
     async def checkpoint(self) -> None:
         if self.cancelled:
@@ -96,6 +97,23 @@ class FakeContext:
 
     async def run_step(self, step_key, effect, *, idempotent: bool = False):
         return await effect()
+
+    async def policy_facts(self):
+        from app.policy.pdp import PolicyFacts
+
+        return PolicyFacts(True, True, "RUNNING", True)
+
+    async def audit(self, action, target, outcome, details, policy_version=None) -> None:
+        self.audits.append((action, outcome))
+
+    async def request_approval(self, action, ttl_seconds):
+        raise AssertionError("the default read-only tool never needs approval")
+
+    async def get_approval(self, approval_id):
+        raise AssertionError("unused")
+
+    async def execute_approved(self, step_key, digest, effect):
+        raise AssertionError("unused")
 
     def types(self) -> list[str]:
         return [t for t, _ in self.events]

@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.slg.agentdock.data.net.ApiError
 import com.slg.agentdock.data.net.ApiResult
+import com.slg.agentdock.data.tasks.Approval
+import com.slg.agentdock.data.tasks.ApprovalRepository
 import com.slg.agentdock.data.tasks.LastSeenStore
 import com.slg.agentdock.data.tasks.RemoteTaskDetail
 import com.slg.agentdock.data.tasks.StreamState
@@ -30,17 +32,22 @@ data class TaskDetailUiState(
     val stream: StreamState = StreamState.Idle,
     /** Highest sequence seen in an earlier visit; later events are marked new. 0 = none. */
     val lastSeenAtOpen: Long = 0L,
+    val approvals: List<Approval> = emptyList(),
+    val deciding: Boolean = false,
+    val decisionError: ApiError? = null,
 )
 
 class TaskDetailViewModel(
     private val repository: TaskRepository?,
     private val stream: TaskEventStream?,
     private val lastSeen: LastSeenStore?,
+    private val approvals: ApprovalRepository?,
     private val taskId: String,
 ) : ViewModel() {
     private val timeline = TimelineBuffer()
     private var syncJob: Job? = null
     private var detailRefreshedAtSequence = 0L
+    private var approvalsLoadedAtSequence = -1L
     private val mutableState = MutableStateFlow(TaskDetailUiState())
     val state: StateFlow<TaskDetailUiState> = mutableState.asStateFlow()
 
@@ -104,9 +111,53 @@ class TaskDetailViewModel(
                         detailRefreshedAtSequence = newest?.sequence ?: detailRefreshedAtSequence
                         refreshDetailOnly(repo)
                     }
+                    val approvalRelevant = snapshot.events.lastOrNull { it.type in APPROVAL_EVENTS }
+                    if (approvalRelevant != null && approvalRelevant.sequence > approvalsLoadedAtSequence) {
+                        approvalsLoadedAtSequence = approvalRelevant.sequence
+                        loadApprovals()
+                    }
                     delay(BATCH_MS)
                 }
         }
+    }
+
+    /** Reads the current approvals; the server is the only source of what may be decided. */
+    fun loadApprovals() {
+        val repo = approvals ?: return
+        viewModelScope.launch {
+            when (val result = repo.list(taskId)) {
+                is ApiResult.Success -> mutableState.update { it.copy(approvals = result.value) }
+                is ApiResult.Failure -> Unit
+            }
+        }
+    }
+
+    /**
+     * Decides exactly the action that was displayed: the digest of the displayed approval
+     * is echoed, so the server refuses (Conflict) if the action changed or expired meanwhile.
+     */
+    fun decide(approval: Approval, approve: Boolean) {
+        val repo = approvals ?: return
+        if (mutableState.value.deciding) return
+        mutableState.update { it.copy(deciding = true, decisionError = null) }
+        viewModelScope.launch {
+            when (val result = repo.decide(approval.id, approval.digest, approve)) {
+                is ApiResult.Success -> mutableState.update { state ->
+                    state.copy(
+                        deciding = false,
+                        approvals = state.approvals.map { if (it.id == result.value.id) result.value else it },
+                    )
+                }
+                is ApiResult.Failure -> {
+                    mutableState.update { it.copy(deciding = false, decisionError = result.error) }
+                    loadApprovals() // show what the server now says about this action
+                }
+            }
+        }
+    }
+
+    fun dismissDecisionError() {
+        mutableState.update { it.copy(decisionError = null) }
     }
 
     fun stopStreaming() {
@@ -143,6 +194,7 @@ class TaskDetailViewModel(
         private val repository: TaskRepository?,
         private val stream: TaskEventStream?,
         private val lastSeen: LastSeenStore?,
+        private val approvals: ApprovalRepository?,
         private val taskId: String,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
@@ -150,12 +202,13 @@ class TaskDetailViewModel(
             require(modelClass.isAssignableFrom(TaskDetailViewModel::class.java)) {
                 "Unknown ViewModel class: ${modelClass.name}"
             }
-            return TaskDetailViewModel(repository, stream, lastSeen, taskId) as T
+            return TaskDetailViewModel(repository, stream, lastSeen, approvals, taskId) as T
         }
     }
 
     private companion object {
         const val MAX_PAGES = 50
         const val BATCH_MS = 150L
+        val APPROVAL_EVENTS = setOf("APPROVAL_REQUESTED", "TASK_WAITING_APPROVAL", "TASK_APPROVAL_RESOLVED")
     }
 }

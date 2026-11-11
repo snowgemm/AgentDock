@@ -78,6 +78,26 @@ class _Context:
     async def load_checkpoint(self) -> dict[str, Any] | None:
         return await self._store.load_checkpoint(self._lease)
 
+    async def policy_facts(self) -> Any:
+        return await self._store.policy_facts(self._lease)
+
+    async def audit(
+        self, action: str, target: str, outcome: str, details: dict[str, Any],
+        policy_version: str | None = None,
+    ) -> None:
+        await self._store.audit(self._lease, action, target, outcome, details, policy_version)
+
+    async def request_approval(self, action: Any, ttl_seconds: float) -> Any:
+        return await self._store.request_approval(self._lease, action, ttl_seconds)
+
+    async def get_approval(self, approval_id: Any) -> Any:
+        return await self._store.get_approval(self._lease, approval_id)
+
+    async def execute_approved(
+        self, step_key: str, digest: str, effect: Callable[[], Awaitable[dict[str, Any]]]
+    ) -> dict[str, Any]:
+        return await self._store.execute_approved(self._lease, step_key, digest, effect)
+
     async def run_step(
         self,
         step_key: str,
@@ -246,7 +266,7 @@ class Worker:
                     )
             else:
                 # Unknown errors are never retried: completion of any side effect is uncertain.
-                logger.error("handler error for %s: %s", lease.task_id, type(error).__name__)
+                logger.error("handler error for %s: %s", lease.task_id, type(error).__name__, exc_info=error)
                 await self._store.finish_failure(lease, "handler_error")
         except (LeaseLost, IllegalTransition):
             logger.warning("task %s error result discarded: lease lost", lease.task_id)

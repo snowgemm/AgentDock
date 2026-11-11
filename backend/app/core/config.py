@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     agent_max_output_tokens: int = Field(default=1_500, ge=16, le=32_000)
     agent_wall_seconds: float = Field(default=120.0, ge=1, le=3600)
     agent_model_timeout_seconds: float = Field(default=60.0, ge=1, le=600)
+    agent_approval_ttl_seconds: float = Field(default=900.0, ge=1, le=86_400)
+    agent_approval_poll_seconds: float = Field(default=1.0, ge=0.05, le=30)
 
     # Server-sent events for task timelines.
     sse_heartbeat_seconds: float = Field(default=15.0, ge=0.1, le=60)

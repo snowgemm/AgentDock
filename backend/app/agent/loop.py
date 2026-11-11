@@ -28,7 +28,6 @@ from app.agent.gateway import (
     Usage,
 )
 from app.agent.tools import (
-    ToolInvocation,
     ToolRegistry,
     ToolRejected,
     wrap_tool_error,
@@ -39,6 +38,8 @@ from app.agent.verifier import (
     Verifier,
     default_definition_of_done,
 )
+from app.policy.executor import PolicyEnforcingExecutor, ToolDenied
+from app.policy.pdp import PolicyEngine
 from app.worker.handlers import HandlerOutcome, PermanentError, RetryableError, TaskContext
 
 SYSTEM_POLICY = (
@@ -116,9 +117,11 @@ class AgentRunner:
         verifier: Verifier,
         *,
         clock=monotonic,
+        executor: PolicyEnforcingExecutor | None = None,
     ) -> None:
         self._gateway = gateway
         self._tools = tools
+        self._executor = executor or PolicyEnforcingExecutor(tools, PolicyEngine())
         self._budgets = budgets
         self._verifier = verifier
         self._clock = clock
@@ -217,8 +220,11 @@ class AgentRunner:
             return Message(kind="tool_result", call_id=call.call_id, text=wrap_tool_error(rejection.code))
 
         try:
-            output = await self._tools.run(tool, ToolInvocation(context, arguments))
+            output = await self._executor.execute(context, tool, arguments)
             ok, result = True, output
+        except ToolDenied as denied:
+            await context.emit("AGENT_TOOL_DENIED", {"tool": tool.name, "code": denied.code})
+            ok, result = False, wrap_tool_error(denied.code)
         except TimeoutError:
             ok, result = False, wrap_tool_error("tool_timeout")
         except (PermanentError, RetryableError):

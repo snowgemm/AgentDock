@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
                 authViewModel = authViewModel,
                 tasksViewModel = tasksViewModel,
                 detailFactory = { taskId ->
-                    TaskDetailViewModel.Factory(auth?.tasks, auth?.events, auth?.lastSeen, taskId)
+                    TaskDetailViewModel.Factory(auth?.tasks, auth?.events, auth?.lastSeen, auth?.approvals, taskId)
                 },
             )
         }

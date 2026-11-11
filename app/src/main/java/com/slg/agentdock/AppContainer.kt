@@ -14,6 +14,8 @@ import com.slg.agentdock.data.auth.android.DataStoreSecureBlob
 import com.slg.agentdock.data.auth.android.KeystoreKey
 import com.slg.agentdock.data.auth.android.OidcClient
 import com.slg.agentdock.data.tasks.HttpTaskRepository
+import com.slg.agentdock.data.tasks.ApprovalRepository
+import com.slg.agentdock.data.tasks.HttpApprovalRepository
 import com.slg.agentdock.data.tasks.LastSeenStore
 import com.slg.agentdock.data.tasks.SseTaskEventStream
 import com.slg.agentdock.data.tasks.TaskEventStream
@@ -35,6 +37,7 @@ class AuthServices(
     val tasks: TaskRepository,
     val events: TaskEventStream,
     val lastSeen: LastSeenStore,
+    val approvals: ApprovalRepository,
 )
 
 /** Manual dependency container; wiring stays in one reviewable place. */
@@ -89,6 +92,7 @@ class AppContainer(context: Context) {
             tasks = HttpTaskRepository(apiHttp, config.apiBaseUrl.toHttpUrl(), json),
             events = SseTaskEventStream(apiHttp, config.apiBaseUrl.toHttpUrl(), json),
             lastSeen = DataStoreLastSeenStore(appContext),
+            approvals = HttpApprovalRepository(apiHttp, config.apiBaseUrl.toHttpUrl(), json),
         )
     }
 }

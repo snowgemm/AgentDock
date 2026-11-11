@@ -9,6 +9,8 @@ from app.agent.loop import AgentBudgets, AgentRunner
 from app.agent.openai_gateway import OpenAIGateway
 from app.agent.tools import ToolRegistry, default_tools
 from app.agent.verifier import StructuralVerifier, Verifier
+from app.policy.executor import PolicyEnforcingExecutor
+from app.policy.pdp import PolicyEngine
 from app.core.config import Settings
 from app.worker.handlers import (
     HandlerNotConfigured,
@@ -22,8 +24,8 @@ class AgentHandler:
     name = "agent"
 
     def __init__(self, gateway: ModelGateway, tools: ToolRegistry, budgets: AgentBudgets,
-                 verifier: Verifier) -> None:
-        self._runner = AgentRunner(gateway, tools, budgets, verifier)
+                 verifier: Verifier, executor: PolicyEnforcingExecutor | None = None) -> None:
+        self._runner = AgentRunner(gateway, tools, budgets, verifier, executor=executor)
 
     async def run(self, context: TaskContext) -> HandlerOutcome:
         return await self._runner.run(context)
@@ -56,8 +58,14 @@ async def build_agent_handler(
         input_cost_per_million=settings.openai_input_cost_per_million,
         output_cost_per_million=settings.openai_output_cost_per_million,
     )
-    return AgentHandler(gateway, default_tools(), budgets_from_settings(settings),
-                        StructuralVerifier(secrets=(key.get_secret_value(),)))
+    tools = default_tools()
+    executor = PolicyEnforcingExecutor(
+        tools, PolicyEngine(),
+        approval_ttl_seconds=settings.agent_approval_ttl_seconds,
+        poll_seconds=settings.agent_approval_poll_seconds,
+    )
+    return AgentHandler(gateway, tools, budgets_from_settings(settings),
+                        StructuralVerifier(secrets=(key.get_secret_value(),)), executor)
 
 
 register_handler("agent", build_agent_handler)

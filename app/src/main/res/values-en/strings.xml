@@ -173,4 +173,25 @@
     <string name="result_not_verified">Not verified · shown for reference only</string>
     <string name="result_verification_note">Structural verification confirms the answer is complete, within budget and has recorded evidence. It does not guarantee the content is correct; check it yourself before relying on it.</string>
 
+    <string name="approval_heading">Your approval is needed for one action</string>
+    <string name="approval_effect">Expected effect</string>
+    <string name="approval_tool">Tool</string>
+    <string name="approval_target">Affected target</string>
+    <string name="approval_risk">Risk level</string>
+    <string name="approval_expires">Expires</string>
+    <string name="approval_action_id">Action ID</string>
+    <string name="approval_scope_note">This decision applies once, to exactly the action above. If anything changes you will be asked again.</string>
+    <string name="approval_approve">Approve this action</string>
+    <string name="approval_deny">Deny</string>
+    <string name="approval_error_changed">The action changed, expired or was already handled, so your decision was not recorded. Review the current details.</string>
+    <string name="risk_read_only">Read-only</string>
+    <string name="risk_reversible">Reversible</string>
+    <string name="risk_consequential">Consequential · hard to undo</string>
+    <string name="risk_unknown">Unknown</string>
+
+    <string name="event_agent_tool_denied">An action was refused by policy</string>
+    <string name="event_approval_requested">Approval requested</string>
+    <string name="event_waiting_approval">Waiting for your approval</string>
+    <string name="event_approval_resolved">Approval decision received</string>
+
 </resources>

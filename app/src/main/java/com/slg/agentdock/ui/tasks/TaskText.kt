@@ -55,5 +55,9 @@ fun com.slg.agentdock.data.tasks.TaskEvent.eventLabelRes(): Int? = when (type) {
     "AGENT_TOOL_CALL" -> R.string.event_agent_tool_call
     "AGENT_TOOL_REJECTED" -> R.string.event_agent_tool_rejected
     "AGENT_RESULT" -> R.string.event_agent_result
+    "AGENT_TOOL_DENIED" -> R.string.event_agent_tool_denied
+    "APPROVAL_REQUESTED" -> R.string.event_approval_requested
+    "TASK_WAITING_APPROVAL" -> R.string.event_waiting_approval
+    "TASK_APPROVAL_RESOLVED" -> R.string.event_approval_resolved
     else -> null
 }

@@ -17,6 +17,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -25,7 +26,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.slg.agentdock.R
+import com.slg.agentdock.data.net.ApiError
 import com.slg.agentdock.data.tasks.AgentResult
+import com.slg.agentdock.data.tasks.Approval
 import com.slg.agentdock.data.tasks.StreamState
 import com.slg.agentdock.data.tasks.TaskEvent
 import com.slg.agentdock.data.tasks.extractAgentResult
@@ -40,6 +43,9 @@ fun TaskDetailScreen(
     state: TaskDetailUiState,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
+    onApprove: (Approval) -> Unit = {},
+    onDeny: (Approval) -> Unit = {},
+    onDismissDecisionError: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -80,6 +86,31 @@ fun TaskDetailScreen(
             )
             Spacer(Modifier.height(4.dp))
             Text(text = detail.prompt, style = MaterialTheme.typography.bodyMedium)
+        }
+
+        val now = System.currentTimeMillis()
+        state.approvals.filter { it.isActionable(now) }.forEach { approval ->
+            Spacer(Modifier.height(16.dp))
+            ApprovalCard(
+                approval = approval,
+                deciding = state.deciding,
+                onApprove = { onApprove(approval) },
+                onDeny = { onDeny(approval) },
+            )
+        }
+        state.decisionError?.let { error ->
+            Spacer(Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth().testTag("approval.error")) {
+                Text(
+                    text = stringResource(
+                        if (error == ApiError.Conflict) R.string.approval_error_changed else error.messageRes(),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onDismissDecisionError) { Text(stringResource(R.string.account_dismiss)) }
+            }
         }
 
         extractAgentResult(state.events)?.let { result ->

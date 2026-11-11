@@ -110,6 +110,14 @@ jobs:
           GRANT SELECT, INSERT ON TABLE task_events TO agentdock_worker;
           GRANT SELECT, INSERT, UPDATE ON TABLE task_receipts TO agentdock_worker;
           GRANT SELECT, INSERT, UPDATE ON TABLE task_checkpoints TO agentdock_worker;
+          -- Approvals and audit: the API decides approvals; the worker requests and spends them.
+          GRANT SELECT, UPDATE ON TABLE approvals TO agentdock_runtime;
+          GRANT SELECT, INSERT ON TABLE audit_events TO agentdock_runtime;
+          GRANT SELECT, INSERT, UPDATE ON TABLE approvals TO agentdock_worker;
+          GRANT SELECT, INSERT ON TABLE audit_events TO agentdock_worker;
+          -- Policy re-checks read the task creator's membership and active flag.
+          GRANT SELECT ON TABLE tenant_memberships TO agentdock_worker;
+          GRANT SELECT (id, is_active) ON TABLE users TO agentdock_worker;
           SQL
 
       - name: Verify migration head and ORM schema

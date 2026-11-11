@@ -73,6 +73,25 @@ class TaskContext(Protocol):
 
     async def load_checkpoint(self) -> dict[str, Any] | None: ...
 
+    async def policy_facts(self) -> Any:
+        """Fresh identity/task facts for the policy decision point."""
+
+    async def audit(
+        self, action: str, target: str, outcome: str, details: dict[str, Any],
+        policy_version: str | None = None,
+    ) -> None:
+        """Append a redacted audit event."""
+
+    async def request_approval(self, action: Any, ttl_seconds: float) -> Any:
+        """Create (or fetch the existing) pending approval bound to ``action.digest``."""
+
+    async def get_approval(self, approval_id: UUID) -> Any: ...
+
+    async def execute_approved(
+        self, step_key: str, digest: str, effect: Callable[[], Awaitable[dict[str, Any]]]
+    ) -> dict[str, Any]:
+        """Atomically spend the matching approval, record a receipt, then run the effect."""
+
     async def run_step(
         self,
         step_key: str,

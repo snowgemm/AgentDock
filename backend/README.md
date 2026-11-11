@@ -103,6 +103,13 @@ GRANT UPDATE (status, updated_at) ON TABLE tasks TO agentdock_worker;
 GRANT SELECT, INSERT ON TABLE task_events TO agentdock_worker;
 GRANT SELECT, INSERT, UPDATE ON TABLE task_receipts TO agentdock_worker;
 GRANT SELECT, INSERT, UPDATE ON TABLE task_checkpoints TO agentdock_worker;
+-- approvals and audit (audit_events is append-only: no UPDATE or DELETE for anyone)
+GRANT SELECT, UPDATE ON TABLE approvals TO agentdock_runtime;
+GRANT SELECT, INSERT ON TABLE audit_events TO agentdock_runtime;
+GRANT SELECT, INSERT, UPDATE ON TABLE approvals TO agentdock_worker;
+GRANT SELECT, INSERT ON TABLE audit_events TO agentdock_worker;
+GRANT SELECT ON TABLE tenant_memberships TO agentdock_worker;
+GRANT SELECT (id, is_active) ON TABLE users TO agentdock_worker;
 ```
 
 The API runtime role needs no privileges on `task_dispatch` or `task_receipts`: a `SECURITY DEFINER` trigger on `tasks` enqueues new tasks.

@@ -339,3 +339,73 @@ class TaskCheckpoint(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class Approval(Base):
+    """A human decision bound to one exact action (digest), single use, with an expiry."""
+
+    __tablename__ = "approvals"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["task_id", "tenant_id"], ["tasks.id", "tasks.tenant_id"],
+            name="fk_approvals_task_tenant", ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            "status IN ('PENDING', 'APPROVED', 'DENIED', 'REVOKED', 'CONSUMED', 'EXPIRED')",
+            name="ck_approvals_status",
+        ),
+        Index(
+            "uq_approvals_active_digest", "tenant_id", "task_id", "action_digest",
+            unique=True, postgresql_where=text("status IN ('PENDING', 'APPROVED')"),
+        ),
+        Index("ix_approvals_task", "tenant_id", "task_id", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    task_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    requested_for_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    tool_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    action_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    action: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(12), nullable=False, server_default=text("'PENDING'")
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by_user_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AuditEvent(Base):
+    """Append-only, redacted record of policy decisions and approval actions."""
+
+    __tablename__ = "audit_events"
+    __table_args__ = (
+        CheckConstraint("actor_type IN ('user', 'agent', 'system')", name="ck_audit_actor_type"),
+        Index("ix_audit_events_tenant_created", "tenant_id", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    task_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True))
+    actor_type: Mapped[str] = mapped_column(String(12), nullable=False)
+    actor_user_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True))
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    target: Mapped[str] = mapped_column(String(256), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    policy_version: Mapped[str | None] = mapped_column(String(32))
+    details: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

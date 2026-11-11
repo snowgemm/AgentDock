@@ -278,7 +278,13 @@ private fun AgentDockAppContent(
                         detailModel.startStreaming()
                         onStopOrDispose { detailModel.stopStreaming() }
                     }
-                    TaskDetailScreen(state = detailState, onRefresh = detailModel::refresh)
+                    TaskDetailScreen(
+                        state = detailState,
+                        onRefresh = detailModel::refresh,
+                        onApprove = { detailModel.decide(it, approve = true) },
+                        onDeny = { detailModel.decide(it, approve = false) },
+                        onDismissDecisionError = detailModel::dismissDecisionError,
+                    )
                 }
                 composable(ROUTE_SETTINGS) {
                     SettingsDestination(
