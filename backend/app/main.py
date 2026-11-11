@@ -5,10 +5,12 @@ from fastapi import FastAPI
 
 from app.api.v1.auth import router as auth_router
 from app.api.v1.health import router as health_router
+from app.api.v1.task_stream import router as task_stream_router
 from app.api.v1.tasks import router as tasks_router
 from app.auth.oidc import create_jwks_client
 from app.core.config import Settings, get_settings
 from app.db.session import create_database_engine, create_session_factory
+from app.tasks.notify import TaskEventHub, to_asyncpg_dsn
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -24,9 +26,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         application.state.database_session_factory = (
             create_session_factory(engine) if engine is not None else None
         )
+        hub = None
+        if configuration.database_url is not None:
+            hub = TaskEventHub(to_asyncpg_dsn(configuration.database_url.get_secret_value()))
+            await hub.start()
+        application.state.task_event_hub = hub
         try:
             yield
         finally:
+            if hub is not None:
+                await hub.stop()
             if engine is not None:
                 await engine.dispose()
 
@@ -44,6 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.oidc_jwks_client = create_jwks_client(configuration)
     application.include_router(health_router, prefix="/api/v1")
     application.include_router(auth_router, prefix="/api/v1")
+    application.include_router(task_stream_router, prefix="/api/v1")
     application.include_router(tasks_router, prefix="/api/v1")
     return application
 

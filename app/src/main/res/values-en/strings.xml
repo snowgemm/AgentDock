@@ -148,4 +148,13 @@
     <string name="timeline_empty">No events yet.</string>
     <string name="event_task_created">Task accepted by the server</string>
 
+    <string name="stream_connecting">Connecting…</string>
+    <string name="stream_live">Updating live</string>
+    <string name="stream_reconnecting">Connection lost · reconnecting…</string>
+    <string name="stream_offline">Offline or the server is not responding · will retry automatically</string>
+    <string name="stream_ended">Task finished · no more updates</string>
+    <string name="stream_auth_required">Sign in again to keep receiving updates</string>
+    <string name="stream_failed">This task cannot be followed</string>
+    <string name="timeline_new">New</string>
+
 </resources>

@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     worker_shutdown_grace_seconds: float = Field(default=20.0, ge=0, le=300)
     worker_health_port: int | None = Field(default=None, ge=1, le=65535)
 
+    # Server-sent events for task timelines.
+    sse_heartbeat_seconds: float = Field(default=15.0, ge=0.1, le=60)
+    sse_poll_seconds: float = Field(default=2.0, ge=0.05, le=30)
+    sse_max_lifetime_seconds: float = Field(default=300.0, ge=0.5, le=3600)
+    sse_revalidate_seconds: float = Field(default=20.0, ge=0.05, le=300)
+
     @property
     def oidc_enabled(self) -> bool:
         return all((self.oidc_issuer, self.oidc_audience, self.oidc_jwks_url))

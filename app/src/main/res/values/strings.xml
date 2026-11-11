@@ -148,4 +148,13 @@
     <string name="timeline_empty">Chưa có sự kiện nào.</string>
     <string name="event_task_created">Tác vụ đã được máy chủ nhận</string>
 
+    <string name="stream_connecting">Đang kết nối…</string>
+    <string name="stream_live">Đang cập nhật trực tiếp</string>
+    <string name="stream_reconnecting">Mất kết nối · đang kết nối lại…</string>
+    <string name="stream_offline">Không có mạng hoặc máy chủ không phản hồi · sẽ tự thử lại</string>
+    <string name="stream_ended">Tác vụ đã kết thúc · không còn cập nhật</string>
+    <string name="stream_auth_required">Cần đăng nhập lại để tiếp tục nhận cập nhật</string>
+    <string name="stream_failed">Không thể theo dõi tác vụ này</string>
+    <string name="timeline_new">Mới</string>
+
 </resources>

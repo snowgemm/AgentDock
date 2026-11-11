@@ -9,6 +9,7 @@ import com.slg.agentdock.ui.AgentDockApp
 import com.slg.agentdock.ui.AgentDockViewModel
 import com.slg.agentdock.ui.auth.AuthStatus
 import com.slg.agentdock.ui.auth.AuthViewModel
+import com.slg.agentdock.ui.tasks.TaskDetailViewModel
 import com.slg.agentdock.ui.tasks.TasksViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -44,7 +45,9 @@ class MainActivity : ComponentActivity() {
                 viewModel = viewModel,
                 authViewModel = authViewModel,
                 tasksViewModel = tasksViewModel,
-                taskRepository = auth?.tasks,
+                detailFactory = { taskId ->
+                    TaskDetailViewModel.Factory(auth?.tasks, auth?.events, auth?.lastSeen, taskId)
+                },
             )
         }
     }

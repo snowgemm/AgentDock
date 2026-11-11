@@ -8,4 +8,5 @@
 - Backend local: Postgres 16 + venv work (43 tests passed baseline).
 - Blockers: OIDC provider registration; Android CI result unknown until pushed.
 - Stage 3 (worker): committed locally; 62 backend tests pass on local Postgres 16 incl. new tests/test_worker.py (19). Migration 20261111_0004 (downgrade tested). New role agentdock_worker (CI+README grants). Design: non-RLS task_dispatch + SECURITY DEFINER enqueue trigger; fenced lease token; receipts table.
-- Next: Stage 4.
+- Stage 4 (SSE): committed locally; backend 70 tests pass (8 new in test_task_stream.py incl. NOTIFY wake, Last-Event-ID, revalidation, cross-tenant); migration 20261111_0005 (NOTIFY trigger); Android TaskTimelineSync/SseTaskEventStream JVM-tested (61 tests); detail screen UI unverified until CI. Docs: docs/TASK_STREAM.md, docs/WORKER.md.
+- Next: Stage 5.

@@ -38,9 +38,10 @@ import com.slg.agentdock.ui.components.AppHeader
 import com.slg.agentdock.ui.components.MainNavigationBar
 import com.slg.agentdock.ui.components.WorkspaceTabStrip
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
-import com.slg.agentdock.data.tasks.TaskRepository
 import com.slg.agentdock.ui.auth.AuthEvent
 import com.slg.agentdock.ui.auth.AuthStatus
 import com.slg.agentdock.ui.screens.ActivityScreen
@@ -72,7 +73,7 @@ fun AgentDockApp(
     viewModel: AgentDockViewModel,
     authViewModel: AuthViewModel,
     tasksViewModel: TasksViewModel,
-    taskRepository: TaskRepository?,
+    detailFactory: (String) -> ViewModelProvider.Factory,
 ) {
     val chromeState by viewModel.chromeState.collectAsStateWithLifecycle()
     AgentDockTheme(
@@ -80,7 +81,7 @@ fun AgentDockApp(
         accentColor = chromeState.preferences.accentColor,
         fontScale = chromeState.preferences.fontScale,
     ) {
-        AgentDockAppContent(viewModel, authViewModel, tasksViewModel, taskRepository, chromeState)
+        AgentDockAppContent(viewModel, authViewModel, tasksViewModel, detailFactory, chromeState)
     }
 }
 
@@ -89,7 +90,7 @@ private fun AgentDockAppContent(
     viewModel: AgentDockViewModel,
     authViewModel: AuthViewModel,
     tasksViewModel: TasksViewModel,
-    taskRepository: TaskRepository?,
+    detailFactory: (String) -> ViewModelProvider.Factory,
     chromeState: AgentDockChromeState,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -269,10 +270,14 @@ private fun AgentDockAppContent(
                     val taskId = entry.arguments?.getString("taskId").orEmpty()
                     val detailModel: TaskDetailViewModel = composeViewModel(
                         key = "task-$taskId",
-                        factory = TaskDetailViewModel.Factory(taskRepository, taskId),
+                        factory = detailFactory(taskId),
                     )
                     val detailState by detailModel.state.collectAsStateWithLifecycle()
-                    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { detailModel.refresh() }
+                    // Stream only while this screen is visible: stop on STOP, restart on START.
+                    LifecycleStartEffect(taskId) {
+                        detailModel.startStreaming()
+                        onStopOrDispose { detailModel.stopStreaming() }
+                    }
                     TaskDetailScreen(state = detailState, onRefresh = detailModel::refresh)
                 }
                 composable(ROUTE_SETTINGS) {

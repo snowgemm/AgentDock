@@ -22,6 +22,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.slg.agentdock.R
+import com.slg.agentdock.data.tasks.StreamState
 import com.slg.agentdock.data.tasks.TaskEvent
 import com.slg.agentdock.ui.tasks.TaskDetailUiState
 import com.slg.agentdock.ui.tasks.eventLabelRes
@@ -34,7 +35,6 @@ fun TaskDetailScreen(
     state: TaskDetailUiState,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
-    streamStatus: @Composable () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -100,7 +100,7 @@ fun TaskDetailScreen(
                 Text(stringResource(if (state.loading) R.string.tasks_loading else R.string.refresh))
             }
         }
-        streamStatus()
+        StreamStatusLine(state.stream)
         Spacer(Modifier.height(10.dp))
         if (state.events.isEmpty() && !state.loading) {
             Text(
@@ -109,12 +109,14 @@ fun TaskDetailScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        state.events.forEach { event -> TimelineRow(event) }
+        state.events.forEach { event ->
+            TimelineRow(event, isNew = state.lastSeenAtOpen > 0 && event.sequence > state.lastSeenAtOpen)
+        }
     }
 }
 
 @Composable
-private fun TimelineRow(event: TaskEvent) {
+private fun TimelineRow(event: TaskEvent, isNew: Boolean) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).testTag("timeline.row")) {
         Text(
             text = "#${event.sequence}",
@@ -124,7 +126,8 @@ private fun TimelineRow(event: TaskEvent) {
         )
         Column {
             Text(
-                text = event.eventLabelRes()?.let { stringResource(it) } ?: event.type,
+                text = (event.eventLabelRes()?.let { stringResource(it) } ?: event.type) +
+                    if (isNew) " · " + stringResource(R.string.timeline_new) else "",
                 style = MaterialTheme.typography.bodyMedium,
             )
             Text(
@@ -138,4 +141,26 @@ private fun TimelineRow(event: TaskEvent) {
             )
         }
     }
+}
+
+/** Honest connection state for the live timeline; never implies progress that is not happening. */
+@Composable
+fun StreamStatusLine(state: StreamState, modifier: Modifier = Modifier) {
+    val label = when (state) {
+        StreamState.Idle -> return
+        StreamState.Connecting -> R.string.stream_connecting
+        StreamState.Live -> R.string.stream_live
+        StreamState.Reconnecting -> R.string.stream_reconnecting
+        StreamState.Offline -> R.string.stream_offline
+        StreamState.Ended -> R.string.stream_ended
+        StreamState.AuthRequired -> R.string.stream_auth_required
+        StreamState.Failed -> R.string.stream_failed
+    }
+    Text(
+        text = stringResource(label),
+        style = MaterialTheme.typography.labelMedium,
+        color = if (state == StreamState.Live) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.padding(top = 6.dp).testTag("stream.status"),
+    )
 }
