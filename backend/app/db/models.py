@@ -237,3 +237,78 @@ class IdempotencyRecord(Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class TaskDispatch(Base):
+    """Routing/lease data for the worker.
+
+    Intentionally NOT tenant-RLS protected so a worker can find ready work across
+    tenants. It holds only identifiers, timing and lease fields; the worker must set
+    the tenant GUC and read or write tenant data under forced RLS after a claim.
+    """
+
+    __tablename__ = "task_dispatch"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["task_id", "tenant_id"], ["tasks.id", "tasks.tenant_id"],
+            name="fk_task_dispatch_task_tenant", ondelete="CASCADE",
+        ),
+        CheckConstraint("state IN ('PENDING', 'LEASED', 'DONE')", name="ck_task_dispatch_state"),
+        CheckConstraint("attempts >= 0 AND max_attempts >= 1", name="ck_task_dispatch_attempts"),
+        Index("ix_task_dispatch_state_available", "state", "available_at"),
+    )
+
+    task_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    state: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default=text("'PENDING'")
+    )
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    lease_owner: Mapped[str | None] = mapped_column(String(128))
+    lease_token: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("3"))
+    last_error: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class TaskReceipt(Base):
+    """Durable record that a side-effecting step was started and whether it completed.
+
+    The STARTED row is committed before the effect runs, so a crash leaves proof that
+    completion is uncertain and the step must not be blindly replayed.
+    """
+
+    __tablename__ = "task_receipts"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["task_id", "tenant_id"], ["tasks.id", "tasks.tenant_id"],
+            name="fk_task_receipts_task_tenant", ondelete="CASCADE",
+        ),
+        UniqueConstraint("tenant_id", "task_id", "step_key", name="uq_task_receipts_step"),
+        CheckConstraint("state IN ('STARTED', 'COMPLETED')", name="ck_task_receipts_state"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    task_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    step_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False)
+    state: Mapped[str] = mapped_column(String(12), nullable=False)
+    result: Mapped[dict | None] = mapped_column(JSONB)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

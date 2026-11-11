@@ -34,12 +34,28 @@ class Settings(BaseSettings):
     session_access_token_minutes: int = Field(default=15, ge=5, le=60)
     session_max_lifetime_days: int = Field(default=30, ge=1, le=90)
 
+    # Worker process (python -m app.worker). The worker uses its own least-privilege
+    # database role and credentials; it never reuses the API runtime or migrator role.
+    worker_database_url: SecretStr | None = None
+    worker_handler: str | None = None
+    worker_lease_seconds: int = Field(default=30, ge=5, le=600)
+    worker_heartbeat_seconds: int = Field(default=10, ge=1, le=300)
+    worker_poll_seconds: float = Field(default=2.0, ge=0.1, le=60)
+    worker_concurrency: int = Field(default=2, ge=1, le=32)
+    worker_task_timeout_seconds: int = Field(default=300, ge=5, le=3600)
+    worker_retry_base_seconds: float = Field(default=5.0, ge=0.1, le=600)
+    worker_retry_max_seconds: float = Field(default=300.0, ge=0.1, le=3600)
+    worker_shutdown_grace_seconds: float = Field(default=20.0, ge=0, le=300)
+    worker_health_port: int | None = Field(default=None, ge=1, le=65535)
+
     @property
     def oidc_enabled(self) -> bool:
         return all((self.oidc_issuer, self.oidc_audience, self.oidc_jwks_url))
 
     @model_validator(mode="after")
     def validate_oidc_configuration(self) -> "Settings":
+        if self.worker_heartbeat_seconds * 2 >= self.worker_lease_seconds:
+            raise ValueError("WORKER_HEARTBEAT_SECONDS must be less than half of WORKER_LEASE_SECONDS.")
         configured = (self.oidc_issuer, self.oidc_audience, self.oidc_jwks_url)
         if any(configured) and not all(configured):
             raise ValueError("OIDC_ISSUER, OIDC_AUDIENCE and OIDC_JWKS_URL must be configured together.")

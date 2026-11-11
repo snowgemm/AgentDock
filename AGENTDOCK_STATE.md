@@ -7,4 +7,5 @@
 - Local checks: no Android SDK (Google hosts blocked); pure Android-free logic compiled+tested via a scratch JVM Gradle project. Android CI is the gate for UI/Android code.
 - Backend local: Postgres 16 + venv work (43 tests passed baseline).
 - Blockers: OIDC provider registration; Android CI result unknown until pushed.
-- Next: Stage 3.
+- Stage 3 (worker): committed locally; 62 backend tests pass on local Postgres 16 incl. new tests/test_worker.py (19). Migration 20261111_0004 (downgrade tested). New role agentdock_worker (CI+README grants). Design: non-RLS task_dispatch + SECURITY DEFINER enqueue trigger; fenced lease token; receipts table.
+- Next: Stage 4.

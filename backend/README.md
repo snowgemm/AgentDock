@@ -87,3 +87,21 @@ Set `AGENTDOCK_OIDC_ISSUER`, `AGENTDOCK_OIDC_AUDIENCE`, `AGENTDOCK_OIDC_JWKS_URL
 The `GET /api/v1/auth/identity` endpoint remains a verification probe. `POST /api/v1/auth/session` exchanges a verified external access token for an AgentDock session: the backend maps `(issuer, subject)` to an internal account, provisions a personal workspace on first sign-in, and issues short-lived opaque access tokens plus rotating refresh tokens. Only SHA-256 token hashes are stored; replay of a rotated refresh token revokes the session family. `GET /api/v1/auth/me` reads the current internal session and `POST /api/v1/auth/session/logout` revokes it. Never send an ID token; configure and validate the identity provider's access-token contract for the AgentDock API audience.
 
 The initial task API is documented in `docs/TASK_API.md`. Task creation atomically persists the `QUEUED` task, its `TASK_CREATED` event and its idempotency response. List/detail/event reads run only after session and active-workspace membership checks. `QUEUED` means accepted and persisted; no worker is present to execute it yet.
+
+## Worker process and role
+
+The durable worker runs from the same image: `python -m app.worker` (see `docs/WORKER.md`). It uses its own least-privilege role and URL (`AGENTDOCK_WORKER_DATABASE_URL`); never reuse the runtime or migrator role, and never give it `BYPASSRLS`:
+
+```sql
+CREATE ROLE agentdock_worker LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+GRANT CONNECT ON DATABASE agentdock TO agentdock_worker;
+GRANT USAGE ON SCHEMA public TO agentdock_worker;
+-- after `alembic upgrade head`, as the migration role:
+GRANT SELECT, UPDATE ON TABLE task_dispatch TO agentdock_worker;
+GRANT SELECT ON TABLE tasks TO agentdock_worker;
+GRANT UPDATE (status, updated_at) ON TABLE tasks TO agentdock_worker;
+GRANT SELECT, INSERT ON TABLE task_events TO agentdock_worker;
+GRANT SELECT, INSERT, UPDATE ON TABLE task_receipts TO agentdock_worker;
+```
+
+The API runtime role needs no privileges on `task_dispatch` or `task_receipts`: a `SECURITY DEFINER` trigger on `tasks` enqueues new tasks.

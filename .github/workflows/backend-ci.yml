@@ -50,6 +50,7 @@ jobs:
       AGENTDOCK_MIGRATION_DATABASE_URL: postgresql+asyncpg://agentdock_migrator:ci-migrator-password@127.0.0.1:5432/agentdock
       AGENTDOCK_TEST_ADMIN_DATABASE_URL: postgresql+asyncpg://postgres:ci-postgres-password@127.0.0.1:5432/agentdock
       AGENTDOCK_TEST_DATABASE_URL: postgresql+asyncpg://agentdock_runtime:ci-runtime-password@127.0.0.1:5432/agentdock
+      AGENTDOCK_TEST_WORKER_DATABASE_URL: postgresql+asyncpg://agentdock_worker:ci-worker-password@127.0.0.1:5432/agentdock
     defaults:
       run:
         working-directory: backend
@@ -79,9 +80,11 @@ jobs:
             NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
           CREATE ROLE agentdock_runtime LOGIN PASSWORD 'ci-runtime-password'
             NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+          CREATE ROLE agentdock_worker LOGIN PASSWORD 'ci-worker-password'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
           ALTER SCHEMA public OWNER TO agentdock_migrator;
-          GRANT CONNECT ON DATABASE agentdock TO agentdock_migrator, agentdock_runtime;
-          GRANT USAGE ON SCHEMA public TO agentdock_runtime;
+          GRANT CONNECT ON DATABASE agentdock TO agentdock_migrator, agentdock_runtime, agentdock_worker;
+          GRANT USAGE ON SCHEMA public TO agentdock_runtime, agentdock_worker;
           SQL
 
       - name: Apply database migrations
@@ -100,6 +103,12 @@ jobs:
           GRANT SELECT, INSERT, UPDATE, DELETE
             ON TABLE tenant_memberships, tasks, task_events, idempotency_records
             TO agentdock_runtime;
+          -- Worker: routing/lease table (no tenant content) plus tenant tables under RLS.
+          GRANT SELECT, UPDATE ON TABLE task_dispatch TO agentdock_worker;
+          GRANT SELECT ON TABLE tasks TO agentdock_worker;
+          GRANT UPDATE (status, updated_at) ON TABLE tasks TO agentdock_worker;
+          GRANT SELECT, INSERT ON TABLE task_events TO agentdock_worker;
+          GRANT SELECT, INSERT, UPDATE ON TABLE task_receipts TO agentdock_worker;
           SQL
 
       - name: Verify migration head and ORM schema
