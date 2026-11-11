@@ -113,6 +113,59 @@ def upgrade() -> None:
     )
     op.create_index("ix_task_dispatch_state_available", "task_dispatch", ["state", "available_at"])
 
+    # A narrowly privileged SECURITY DEFINER trigger is required because the API
+    # runtime must not receive direct INSERT access to the unscoped dispatch table.
+    op.execute("CREATE SCHEMA agentdock_private AUTHORIZATION agentdock_migrator")
+    op.execute("GRANT USAGE, CREATE ON SCHEMA agentdock_private TO agentdock_dispatcher")
+    op.execute("GRANT USAGE ON SCHEMA public TO agentdock_dispatcher")
+    op.execute("GRANT INSERT ON TABLE public.task_dispatch TO agentdock_dispatcher")
+    op.execute("SET LOCAL ROLE agentdock_dispatcher")
+    op.execute(
+        """
+        CREATE FUNCTION agentdock_private.enqueue_task_dispatch()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        SECURITY DEFINER
+        SET search_path = pg_catalog
+        AS $function$
+        BEGIN
+            INSERT INTO public.task_dispatch (task_id, tenant_id)
+            VALUES (NEW.id, NEW.tenant_id);
+            RETURN NEW;
+        END;
+        $function$
+        """
+    )
+    op.execute("RESET ROLE")
+    # CREATE TRIGGER checks EXECUTE permission at definition time. Keep that
+    # grant off PUBLIC and the runtime role's own permissions remain minimal.
+    op.execute(
+        "GRANT EXECUTE ON FUNCTION agentdock_private.enqueue_task_dispatch() "
+        "TO agentdock_migrator"
+    )
+    op.execute(
+        """
+        CREATE TRIGGER trg_tasks_enqueue_dispatch
+        AFTER INSERT ON public.tasks
+        FOR EACH ROW
+        EXECUTE FUNCTION agentdock_private.enqueue_task_dispatch()
+        """
+    )
+    op.execute(
+        "REVOKE ALL ON FUNCTION agentdock_private.enqueue_task_dispatch() FROM PUBLIC"
+    )
+    op.execute(
+        "REVOKE EXECUTE ON FUNCTION agentdock_private.enqueue_task_dispatch() "
+        "FROM agentdock_migrator"
+    )
+    op.execute(
+        "GRANT USAGE ON SCHEMA agentdock_private TO agentdock_runtime"
+    )
+    op.execute(
+        "GRANT EXECUTE ON FUNCTION agentdock_private.enqueue_task_dispatch() "
+        "TO agentdock_runtime"
+    )
+
     op.create_table(
         "task_receipts",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -220,6 +273,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute("DROP TRIGGER IF EXISTS trg_tasks_enqueue_dispatch ON public.tasks")
+    op.execute("DROP FUNCTION IF EXISTS agentdock_private.enqueue_task_dispatch()")
+    op.execute("DROP SCHEMA IF EXISTS agentdock_private")
     for table_name in ("audit_events", "approvals", "task_checkpoints", "task_receipts"):
         op.drop_table(table_name)
     op.drop_index("ix_task_dispatch_state_available", table_name="task_dispatch")
