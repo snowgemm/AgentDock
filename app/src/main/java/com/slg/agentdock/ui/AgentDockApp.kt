@@ -1,6 +1,8 @@
 package com.slg.agentdock.ui
 
 import android.view.SoundEffectConstants
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +37,9 @@ import com.slg.agentdock.R
 import com.slg.agentdock.ui.components.AppHeader
 import com.slg.agentdock.ui.components.MainNavigationBar
 import com.slg.agentdock.ui.components.WorkspaceTabStrip
+import com.slg.agentdock.ui.auth.AuthEvent
+import com.slg.agentdock.ui.auth.AuthViewModel
+import com.slg.agentdock.ui.screens.AccountSection
 import com.slg.agentdock.ui.screens.HomeScreen
 import com.slg.agentdock.ui.screens.SettingsScreen
 import com.slg.agentdock.ui.screens.TabsScreen
@@ -48,20 +53,21 @@ private const val ROUTE_WORKSPACE = "workspace"
 private const val ROUTE_SETTINGS = "settings"
 
 @Composable
-fun AgentDockApp(viewModel: AgentDockViewModel) {
+fun AgentDockApp(viewModel: AgentDockViewModel, authViewModel: AuthViewModel) {
     val chromeState by viewModel.chromeState.collectAsStateWithLifecycle()
     AgentDockTheme(
         themeMode = chromeState.preferences.themeMode,
         accentColor = chromeState.preferences.accentColor,
         fontScale = chromeState.preferences.fontScale,
     ) {
-        AgentDockAppContent(viewModel, chromeState)
+        AgentDockAppContent(viewModel, authViewModel, chromeState)
     }
 }
 
 @Composable
 private fun AgentDockAppContent(
     viewModel: AgentDockViewModel,
+    authViewModel: AuthViewModel,
     chromeState: AgentDockChromeState,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -73,6 +79,18 @@ private fun AgentDockAppContent(
     val draftSavedMessage = androidx.compose.ui.res.stringResource(R.string.draft_saved)
     val serverAddressSavedMessage = androidx.compose.ui.res.stringResource(R.string.server_address_saved)
     val invalidServerAddressMessage = androidx.compose.ui.res.stringResource(R.string.invalid_server_address)
+
+    val browserLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result -> authViewModel.onBrowserResult(result.data) }
+
+    LaunchedEffect(authViewModel) {
+        authViewModel.events.collect { event ->
+            when (event) {
+                is AuthEvent.LaunchBrowser -> browserLauncher.launch(event.intent)
+            }
+        }
+    }
 
     fun feedback() {
         if (chromeState.preferences.hapticsEnabled) {
@@ -204,6 +222,7 @@ private fun AgentDockAppContent(
                 composable(ROUTE_SETTINGS) {
                     SettingsDestination(
                         viewModel = viewModel,
+                        authViewModel = authViewModel,
                         onSaveServerUrl = {
                             feedback()
                             viewModel.saveServerUrl(it)
@@ -264,14 +283,24 @@ private fun TabsDestination(
 @Composable
 private fun SettingsDestination(
     viewModel: AgentDockViewModel,
+    authViewModel: AuthViewModel,
     onSaveServerUrl: (String) -> Unit,
     onPreferencesChange: (com.slg.agentdock.data.model.AppPreferences) -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val authState by authViewModel.uiState.collectAsStateWithLifecycle()
     SettingsScreen(
         serverUrl = state.serverUrl,
         preferences = state.preferences,
         onSaveServerUrl = onSaveServerUrl,
         onPreferencesChange = onPreferencesChange,
+        accountContent = {
+            AccountSection(
+                state = authState,
+                onSignIn = authViewModel::startSignIn,
+                onSignOut = authViewModel::signOut,
+                onDismissError = authViewModel::dismissError,
+            )
+        },
     )
 }

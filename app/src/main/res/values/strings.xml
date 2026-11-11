@@ -90,4 +90,24 @@
     <string name="language_older_android">Thiết bị này dùng ngôn ngữ hệ thống. Hãy đổi ngôn ngữ Android để thay đổi ngôn ngữ ứng dụng.</string>
     <string name="settings_connections">Kết nối và bảo mật</string>
 
+    <string name="account_title">Tài khoản</string>
+    <string name="account_not_configured_title">Chưa cấu hình đăng nhập</string>
+    <string name="account_not_configured_body">Bản dựng này chưa có cấu hình nhà cung cấp danh tính nên chưa thể đăng nhập. Nội dung của bạn vẫn chỉ được lưu dưới dạng bản nháp trên thiết bị.</string>
+    <string name="account_restoring">Đang kiểm tra phiên đăng nhập…</string>
+    <string name="account_signed_out_title">Chưa đăng nhập</string>
+    <string name="account_signed_out_body">Đăng nhập bằng trình duyệt hệ thống để gửi tác vụ lên máy chủ AgentDock.</string>
+    <string name="account_signed_in_title">Đã đăng nhập</string>
+    <string name="account_signed_in_body">Phiên đăng nhập được giữ trong kho khóa của thiết bị.</string>
+    <string name="account_sign_in">Đăng nhập bằng trình duyệt</string>
+    <string name="account_sign_out">Đăng xuất</string>
+    <string name="account_signing_in">Đang đăng nhập…</string>
+    <string name="account_dismiss">Đóng thông báo</string>
+    <string name="account_error_callback_rejected">Phản hồi đăng nhập không hợp lệ nên đã bị từ chối. Hãy thử đăng nhập lại.</string>
+    <string name="account_error_provider_unavailable">Không kết nối được nhà cung cấp danh tính. Kiểm tra mạng rồi thử lại.</string>
+    <string name="account_error_token_rejected">Máy chủ AgentDock từ chối mã truy cập của nhà cung cấp danh tính. Cấu hình audience hoặc client của bản dựng này có thể chưa khớp với backend.</string>
+    <string name="account_error_backend_unavailable">Không kết nối được máy chủ AgentDock. Kiểm tra mạng rồi thử lại.</string>
+    <string name="account_error_account_unavailable">Tài khoản AgentDock này hiện không khả dụng.</string>
+    <string name="account_error_session_expired">Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.</string>
+    <string name="account_error_unexpected">Đăng nhập không thành công. Hãy thử lại.</string>
+
 </resources>

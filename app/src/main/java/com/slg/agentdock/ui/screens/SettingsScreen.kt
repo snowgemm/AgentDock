@@ -49,6 +49,7 @@ fun SettingsScreen(
     preferences: AppPreferences,
     onSaveServerUrl: (String) -> Unit,
     onPreferencesChange: (AppPreferences) -> Unit,
+    accountContent: @Composable () -> Unit = {},
 ) {
     var address by remember(serverUrl) { mutableStateOf(serverUrl) }
     val context = LocalContext.current
@@ -72,6 +73,8 @@ fun SettingsScreen(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        accountContent()
 
         SettingsSectionTitle(stringResource(R.string.settings_appearance))
         SettingsChoice(

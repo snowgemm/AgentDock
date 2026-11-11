@@ -1,6 +1,6 @@
 # AgentDock authentication and session contract
 
-**Status:** Backend implementation in feature/auth-session-foundation; automated PostgreSQL CI is required before this contract is considered validated. No identity provider has been selected or configured.
+**Status:** Backend session contract and Android sign-in client are implemented. No identity provider has been selected or configured, and the Android flow has not been exercised against a real provider.
 
 ## Security boundary
 
@@ -42,10 +42,27 @@ The migration creates auth_identities, user_sessions and session_tokens, and mak
 
 Identity/session registry tables are not tenant-owned application data; they are accessed only through the backend service. Tenant membership writes still require the transaction-local app.current_tenant_id context. Before building task routes, the backend must resolve the session workspace membership on the server, set RLS context in the same transaction, and deny requests with no active membership.
 
+## Android client
+
+The app signs in with AppAuth-Android: Authorization Code + PKCE (S256) in the system browser (Custom Tabs), per RFC 8252. It is a public client; no client secret exists anywhere. AppAuth generates and verifies `state`/`nonce`; the app additionally checks that the redirect answers its own request (state, client ID, redirect URI, PKCE method) and that the discovery document's `issuer` equals the configured issuer. The external access token is sent once to `POST /api/v1/auth/session` and is never stored; only AgentDock's opaque access/refresh tokens are kept, encrypted with an Android Keystore AES-256-GCM key in a dedicated DataStore file.
+
+Build-time configuration has **no defaults**. Pass Gradle properties (`-P…` or `~/.gradle/gradle.properties`); when any is missing or invalid the UI shows "sign-in not configured":
+
+| Property | Meaning |
+|---|---|
+| `agentdockOidcIssuer` | Provider issuer, absolute HTTPS URL; discovery is fetched from it |
+| `agentdockOidcClientId` | Registered public client ID (must also be in `AGENTDOCK_OIDC_ALLOWED_CLIENT_IDS`) |
+| `agentdockOidcRedirectUri` | Private-use reverse-domain redirect, e.g. `com.example.app:/oauth2redirect` (RFC 8252 §7.1); its scheme becomes the manifest placeholder |
+| `agentdockOidcScope` | Space-separated scopes requested |
+| `agentdockOidcAudience` | Optional; sent as the `audience` authorization parameter for providers that need it |
+| `agentdockApiBaseUrl` | AgentDock API origin, HTTPS |
+
+Refresh is single-flight behind a mutex (refresh tokens are single-use, so concurrent use would be treated as replay). A request that receives 401 is retried at most once with the refreshed token. Sign-out clears local credentials immediately and then revokes the session remotely on a best-effort basis.
+
 ## Not yet implemented
 
 - Choosing and configuring the actual OIDC provider and verifying its real access-token contract.
-- Android browser-based Authorization Code + PKCE, redirect handling, secure local token storage and login/logout UI.
+- Verifying the Android flow against a real provider (the client is covered by unit tests and a fake-backed UI smoke test only).
 - Account profile/email verification, account linking, multiple workspaces and tenant switching.
 - Per-device session listing and remote revocation.
 - Expired session/token cleanup, retention schedule and rate limiting/abuse controls.

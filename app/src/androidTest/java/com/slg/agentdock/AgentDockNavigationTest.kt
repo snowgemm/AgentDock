@@ -32,6 +32,12 @@ class AgentDockNavigationTest {
     }
 
     @Test
+    fun settingsShowsSignInNotConfiguredWhenBuildHasNoProvider() {
+        composeRule.onNodeWithTag("navigation.settings").performClick()
+        composeRule.onNodeWithTag("account.notConfigured").assertIsDisplayed()
+    }
+
+    @Test
     fun settingsCanChangeThemeAccentTextSizeAndFeedback() {
         composeRule.onNodeWithTag("navigation.settings").performClick()
         composeRule.onNodeWithTag("settings.screen").assertIsDisplayed()

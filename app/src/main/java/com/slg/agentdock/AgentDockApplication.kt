@@ -8,4 +8,6 @@ class AgentDockApplication : Application() {
     val workspaceRepository: WorkspaceRepository by lazy {
         DefaultWorkspaceRepository(this)
     }
+
+    val container: AppContainer by lazy { AppContainer(this) }
 }

@@ -90,4 +90,24 @@
     <string name="language_older_android">This device follows the system language. Change Android’s language to change the app language.</string>
     <string name="settings_connections">Connections and security</string>
 
+    <string name="account_title">Account</string>
+    <string name="account_not_configured_title">Sign-in is not configured</string>
+    <string name="account_not_configured_body">This build has no identity provider configured, so you cannot sign in. Your content is still saved only as a draft on this device.</string>
+    <string name="account_restoring">Checking your session…</string>
+    <string name="account_signed_out_title">Not signed in</string>
+    <string name="account_signed_out_body">Sign in with the system browser to send tasks to your AgentDock server.</string>
+    <string name="account_signed_in_title">Signed in</string>
+    <string name="account_signed_in_body">Your session is kept in the device keystore.</string>
+    <string name="account_sign_in">Sign in with browser</string>
+    <string name="account_sign_out">Sign out</string>
+    <string name="account_signing_in">Signing in…</string>
+    <string name="account_dismiss">Dismiss message</string>
+    <string name="account_error_callback_rejected">The sign-in response was invalid and was rejected. Try signing in again.</string>
+    <string name="account_error_provider_unavailable">Could not reach the identity provider. Check your connection and try again.</string>
+    <string name="account_error_token_rejected">The AgentDock server rejected the identity provider\'s access token. This build\'s audience or client configuration may not match the backend.</string>
+    <string name="account_error_backend_unavailable">Could not reach the AgentDock server. Check your connection and try again.</string>
+    <string name="account_error_account_unavailable">This AgentDock account is currently unavailable.</string>
+    <string name="account_error_session_expired">Your session has expired. Sign in again.</string>
+    <string name="account_error_unexpected">Sign-in did not complete. Try again.</string>
+
 </resources>
