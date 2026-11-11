@@ -25,13 +25,13 @@ permissions:
   contents: write
 
 concurrency:
-  group: agentdock-release-${{ inputs.release_channel }}-${{ inputs.version_name }}
+  group: agentdock-release-${{ github.ref_name }}-${{ inputs.release_channel }}-${{ inputs.version_name }}
   cancel-in-progress: false
 
 jobs:
   release:
     name: Build, verify and publish signed APK
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/test'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -103,18 +103,27 @@ jobs:
           VERSION_NAME: ${{ inputs.version_name }}
           RELEASE_CHANNEL: ${{ inputs.release_channel }}
           RELEASE_NOTES: ${{ inputs.release_notes }}
+          SOURCE_BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid workflow run number for versionCode" >&2; exit 1; }
           [[ "$VERSION_CODE" -le 2100000000 ]] || { echo "versionCode exceeds Android's supported range" >&2; exit 1; }
           [[ "$VERSION_NAME" =~ ^[0-9A-Za-z][0-9A-Za-z.+_-]*$ ]] || { echo "version_name contains unsupported characters" >&2; exit 1; }
           [[ "$RELEASE_CHANNEL" == "stable" || "$RELEASE_CHANNEL" == "preview" ]] || { echo "Unsupported release channel" >&2; exit 1; }
+          if [[ "$SOURCE_BRANCH" == "test" && "$RELEASE_CHANNEL" != "preview" ]]; then
+            echo "::error::The test branch can publish Preview releases only. Stable releases must come from main."
+            exit 1
+          fi
           if [[ -z "$(printf '%s' "$RELEASE_NOTES" | tr -d '[:space:]')" ]]; then
             echo "Release notes must not be empty" >&2
             exit 1
           fi
 
-          TAG="${RELEASE_CHANNEL}-v${VERSION_NAME}"
+          if [[ "$SOURCE_BRANCH" == "test" ]]; then
+            TAG="test-preview-v${VERSION_NAME}"
+          else
+            TAG="${RELEASE_CHANNEL}-v${VERSION_NAME}"
+          fi
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "::error::Tag $TAG already exists. Choose a new version name; release tags are immutable."
             exit 1
@@ -165,16 +174,22 @@ jobs:
           VERSION_NAME: ${{ inputs.version_name }}
           RELEASE_CHANNEL: ${{ inputs.release_channel }}
           RELEASE_NOTES: ${{ inputs.release_notes }}
+          SOURCE_BRANCH: ${{ github.ref_name }}
           APK_PATH: ${{ steps.apk.outputs.apk_path }}
           CHECKSUM_PATH: ${{ steps.apk.outputs.checksum_path }}
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${RELEASE_CHANNEL}-v${VERSION_NAME}"
-          TITLE="AgentDock ${RELEASE_CHANNEL} ${VERSION_NAME}"
+          if [[ "$SOURCE_BRANCH" == "test" ]]; then
+            TAG="test-preview-v${VERSION_NAME}"
+            TITLE="AgentDock Test Preview ${VERSION_NAME}"
+          else
+            TAG="${RELEASE_CHANNEL}-v${VERSION_NAME}"
+            TITLE="AgentDock ${RELEASE_CHANNEL} ${VERSION_NAME}"
+          fi
 
           RELEASE_ARGS=()
-          if [[ "$RELEASE_CHANNEL" == "preview" ]]; then
+          if [[ "$RELEASE_CHANNEL" == "preview" || "$SOURCE_BRANCH" == "test" ]]; then
             RELEASE_ARGS+=(--prerelease)
           fi
 
@@ -190,7 +205,7 @@ jobs:
       - name: Upload signed APK as a workflow artifact
         uses: actions/upload-artifact@v7
         with:
-          name: agentdock-release-${{ inputs.release_channel }}-${{ inputs.version_name }}-${{ github.run_number }}
+          name: agentdock-${{ github.ref_name }}-${{ inputs.release_channel }}-${{ inputs.version_name }}-${{ github.run_number }}
           path: |
             ${{ steps.apk.outputs.apk_path }}
             ${{ steps.apk.outputs.checksum_path }}
