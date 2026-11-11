@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:18
+        image: postgres:17
         env:
           POSTGRES_DB: agentdock
           POSTGRES_USER: postgres
@@ -82,8 +82,8 @@ jobs:
             NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
           CREATE ROLE agentdock_worker LOGIN PASSWORD 'ci-worker-password'
             NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-          ALTER SCHEMA public OWNER TO agentdock_migrator;
           GRANT CONNECT ON DATABASE agentdock TO agentdock_migrator, agentdock_runtime, agentdock_worker;
+          GRANT USAGE, CREATE ON SCHEMA public TO agentdock_migrator;
           GRANT USAGE ON SCHEMA public TO agentdock_runtime, agentdock_worker;
           SQL
 
