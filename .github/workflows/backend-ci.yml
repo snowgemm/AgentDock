@@ -82,6 +82,9 @@ jobs:
             NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
           CREATE ROLE agentdock_worker LOGIN PASSWORD 'ci-worker-password'
             NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+          CREATE ROLE agentdock_dispatcher NOLOGIN
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+          GRANT agentdock_dispatcher TO agentdock_migrator;
           GRANT CONNECT ON DATABASE agentdock TO agentdock_migrator, agentdock_runtime, agentdock_worker;
           GRANT USAGE, CREATE ON SCHEMA public TO agentdock_migrator;
           GRANT USAGE ON SCHEMA public TO agentdock_runtime, agentdock_worker;
