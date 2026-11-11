@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -36,7 +38,7 @@ val oidcAudience = optionalProperty("agentdockOidcAudience")
 val apiBaseUrl = optionalProperty("agentdockApiBaseUrl")
 // AppAuth needs a redirect scheme placeholder for its manifest entry. An inert
 // value that no provider can redirect to is used when sign-in is not configured.
-val oidcRedirectScheme = runCatching { java.net.URI(oidcRedirectUri).scheme }.getOrNull()
+val oidcRedirectScheme = runCatching { URI(oidcRedirectUri).scheme }.getOrNull()
     ?.takeIf { it.contains('.') }
     ?: "agentdock.signin.unconfigured"
 
