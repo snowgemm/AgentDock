@@ -37,9 +37,13 @@ Example role setup (execute as a database administrator after creating the datab
 ```sql
 CREATE ROLE agentdock_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
 CREATE ROLE agentdock_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-GRANT CONNECT ON DATABASE agentdock TO agentdock_migrator, agentdock_runtime;
+CREATE ROLE agentdock_worker LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+CREATE ROLE agentdock_dispatcher NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+GRANT agentdock_dispatcher TO agentdock_migrator;
+GRANT CONNECT ON DATABASE agentdock TO agentdock_migrator, agentdock_runtime, agentdock_worker;
+GRANT CREATE ON DATABASE agentdock TO agentdock_migrator;
 GRANT USAGE, CREATE ON SCHEMA public TO agentdock_migrator;
-GRANT USAGE ON SCHEMA public TO agentdock_runtime;
+GRANT USAGE ON SCHEMA public TO agentdock_runtime, agentdock_worker;
 ```
 
 Set `AGENTDOCK_MIGRATION_DATABASE_URL` to the migration role URL and run migrations:
@@ -93,9 +97,14 @@ The initial task API is documented in `docs/TASK_API.md`. Task creation atomical
 The durable worker runs from the same image: `python -m app.worker` (see `docs/WORKER.md`). It uses its own least-privilege role and URL (`AGENTDOCK_WORKER_DATABASE_URL`); never reuse the runtime or migrator role, and never give it `BYPASSRLS`:
 
 ```sql
-CREATE ROLE agentdock_worker LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+-- Provision these roles before running Alembic (as the Supabase postgres/admin role).
+-- agentdock_dispatcher is NOLOGIN and is used only as the owner of one private trigger function.
+CREATE ROLE agentdock_dispatcher NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+GRANT agentdock_dispatcher TO agentdock_migrator;
 GRANT CONNECT ON DATABASE agentdock TO agentdock_worker;
 GRANT USAGE ON SCHEMA public TO agentdock_worker;
+-- The migrator also needs CREATE on the database to create its private trigger schema.
+GRANT CREATE ON DATABASE agentdock TO agentdock_migrator;
 -- after `alembic upgrade head`, as the migration role:
 GRANT SELECT, UPDATE ON TABLE task_dispatch TO agentdock_worker;
 GRANT SELECT ON TABLE tasks TO agentdock_worker;
@@ -112,4 +121,4 @@ GRANT SELECT ON TABLE tenant_memberships TO agentdock_worker;
 GRANT SELECT (id, is_active) ON TABLE users TO agentdock_worker;
 ```
 
-The API runtime role needs no privileges on `task_dispatch` or `task_receipts`: a `SECURITY DEFINER` trigger on `tasks` enqueues new tasks.
+The API runtime role needs no privileges on `task_dispatch` or `task_receipts`: a `SECURITY DEFINER` trigger owned by the non-login `agentdock_dispatcher` role enqueues new tasks. Its function is stored in the unexposed `agentdock_private` schema; neither `PUBLIC`, `anon`, `authenticated`, nor the runtime role can execute or inspect it. The dispatcher role has only `INSERT` on `task_dispatch`, cannot log in, and has no `BYPASSRLS`.
