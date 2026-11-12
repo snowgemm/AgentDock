@@ -1,14 +1,32 @@
 # AgentDock authentication and session contract
 
-**Status:** Backend session contract and Android sign-in client are implemented. No identity provider has been selected or configured, and the Android flow has not been exercised against a real provider.
+**Status on `test`:** The backend RFC 9068 access-token verifier, internal session endpoints, and Android AppAuth Authorization Code + PKCE client are present. Auth0 has been selected as the provider, but the tenant/API/client configuration and real-device end-to-end flow have not yet been verified. Supabase role provisioning and migrations are separate prerequisites.
 
 ## Security boundary
 
-The Android app is a public OAuth client. When the client login flow is implemented, it must use Authorization Code + PKCE with S256 through the system browser or a browser-backed authentication tab. Never embed an OAuth client secret in the APK.
+Android is a public OAuth client. It uses Authorization Code + PKCE (S256) through the system browser. Never embed an Auth0 client secret in the APK.
 
-The current backend verifier accepts only signed RFC 9068-style JWT access tokens whose JOSE typ is at+jwt or application/at+jwt. It validates the configured HTTPS JWKS, asymmetric algorithm allowlist, issuer, AgentDock API audience, expiry, issued-at, client_id and jti; azp is checked when configured. Do not send an OIDC ID token. A provider that does not issue this access-token profile for the AgentDock API requires a separately reviewed adapter; do not weaken the verifier to make a provider fit.
+The backend accepts only signed RFC 9068-style JWT access tokens with JOSE `typ` equal to `at+jwt` or `application/at+jwt`. It verifies the configured HTTPS JWKS, asymmetric algorithm allowlist, exact issuer, AgentDock API audience, expiry, issued-at, `client_id` and `jti`; `azp` is checked only when explicitly configured. ID tokens are rejected. Do not weaken this verifier to accept another provider's token format.
 
-Configure AGENTDOCK_OIDC_ISSUER, AGENTDOCK_OIDC_AUDIENCE, AGENTDOCK_OIDC_JWKS_URL and AGENTDOCK_OIDC_ALLOWED_CLIENT_IDS together. The allowed client IDs must be a JSON array containing only registered OAuth clients. The issuer and JWKS URL must be HTTPS and operator-provisioned, never request-controlled.
+## Auth0 configuration
+
+Auth0 supports the RFC 9068 access-token profile. Configure it on the **AgentDock API resource server**, not by changing the Android app to send an ID token:
+
+1. Create/select a custom API in Auth0 and choose a unique API Identifier. This exact string is the AgentDock API audience.
+2. Set the API's JWT access-token profile to **RFC 9068** and signing algorithm to **RS256**.
+3. Register the Android application as a **Native** public client using Authorization Code + PKCE. Do not create or embed a client secret for the Android app.
+4. Add the exact private-use reverse-domain redirect URI configured in the Android build to the Auth0 Allowed Callback URLs.
+5. Use one Auth0 issuer domain consistently for discovery, token acquisition, issuer validation and JWKS lookup. Do not obtain tokens from a custom domain and validate against a different domain.
+
+Configure the backend together:
+
+- `AGENTDOCK_OIDC_ISSUER`: exact `iss` value from the Auth0 discovery document (commonly ends with `/`).
+- `AGENTDOCK_OIDC_AUDIENCE`: exact API Identifier.
+- `AGENTDOCK_OIDC_JWKS_URL`: `https://YOUR_AUTH0_DOMAIN/.well-known/jwks.json` for the same issuer domain.
+- `AGENTDOCK_OIDC_ALLOWED_CLIENT_IDS`: JSON array containing the Android Native application's client ID, for example `["YOUR_ANDROID_CLIENT_ID"]`.
+- `AGENTDOCK_OIDC_ALLOWED_ALGORITHMS`: keep `["RS256"]` unless another asymmetric algorithm has been separately reviewed.
+
+The backend verifier requires RFC 9068 claims including `client_id` and `jti`. Confirm the issued access token's JOSE header contains `typ: at+jwt` or `application/at+jwt`; do not infer compliance merely because the token is a JWT.
 
 ## Endpoints
 
@@ -16,57 +34,55 @@ Configure AGENTDOCK_OIDC_ISSUER, AGENTDOCK_OIDC_AUDIENCE, AGENTDOCK_OIDC_JWKS_UR
 |---|---|---|
 | GET /api/v1/auth/identity | External OIDC access token | Verification probe; returns minimal issuer/subject/expiry |
 | POST /api/v1/auth/session | External OIDC access token | Maps identity, provisions a minimal account/workspace on first sign-in, issues AgentDock token pair |
-| POST /api/v1/auth/session/refresh | Refresh token in request body | Rotates the refresh token and issues a new access token |
+| POST /api/v1/auth/session/refresh | Refresh token in request body | Rotates refresh token and issues a new access token |
 | GET /api/v1/auth/me | AgentDock access token | Returns current user, workspace and session identifiers |
-| POST /api/v1/auth/session/logout | AgentDock access token | Revokes the current session and all its tokens |
+| POST /api/v1/auth/session/logout | AgentDock access token | Revokes the current session and its tokens |
 
-The mapping key is the exact (issuer, subject) pair. Email is not used for account matching or linking; accounts provisioned through this flow may have a null email until a separately verified profile flow exists. First sign-in creates one personal workspace and an owner membership. Provisioning is serialized by a PostgreSQL transaction advisory lock and protected by a unique database constraint.
+The mapping key is the exact `(issuer, subject)` pair. Email is not used for account matching or linking. First sign-in creates one personal workspace and an owner membership. Provisioning is serialized by a PostgreSQL transaction advisory lock and protected by a unique database constraint.
 
 ## AgentDock session tokens
 
 - Access and refresh tokens are cryptographically random opaque bearer strings.
 - Only SHA-256 hashes are persisted; plaintext tokens are returned only in the session response.
-- Access token lifetime defaults to 15 minutes.
-- Session lifetime defaults to a fixed 30 days.
-- Refresh tokens rotate on every successful refresh; the previous access token is invalidated.
-- A previously used refresh token indicates replay and revokes the entire session family.
+- Access token lifetime defaults to 15 minutes; session lifetime defaults to 30 days.
+- Refresh tokens rotate on every successful refresh; replay revokes the session family.
 - Logout revokes the session in PostgreSQL; subsequent access-token checks fail immediately.
-- Refresh requests from one client must be serialized. Concurrent refresh calls using the same token are treated as replay and revoke the session.
-- The server checks the session-token hash in PostgreSQL on each authenticated request. This enables immediate revocation but adds a database read per request and must be load-tested.
+- Refresh requests from one client must be serialized. Concurrent refresh calls with the same token can be detected as replay.
+- The server checks the session-token hash in PostgreSQL on authenticated requests. This enables immediate revocation but adds a database read per request and must be load-tested.
 
-The refresh-token rotation and replay-detection design follows the public-client guidance in [RFC 9700, Section 4.14](https://www.rfc-editor.org/rfc/rfc9700.html).
+The refresh-token rotation design follows [RFC 9700, Section 4.14](https://www.rfc-editor.org/rfc/rfc9700.html).
 
 ## Database permissions
 
-The migration creates auth_identities, user_sessions and session_tokens, and makes users.email nullable. The runtime role receives only SELECT/INSERT/UPDATE on identity/session tables and users/tenants, plus the existing tenant-scoped DML permissions. It does not receive schema ownership, migration-history access, superuser or BYPASSRLS privileges.
+The migration creates `auth_identities`, `user_sessions` and `session_tokens`, and makes `users.email` nullable. The runtime role receives only the identity/session and required tenant-task grants. It does not receive schema ownership, migration-history access, superuser or `BYPASSRLS` privileges.
 
-Identity/session registry tables are not tenant-owned application data; they are accessed only through the backend service. Tenant membership writes still require the transaction-local app.current_tenant_id context. Before building task routes, the backend must resolve the session workspace membership on the server, set RLS context in the same transaction, and deny requests with no active membership.
+Use the dedicated Supabase setup instructions in [../backend/SUPABASE_SETUP.md](../backend/SUPABASE_SETUP.md). The Android app must call the AgentDock API; it must never connect directly to Supabase Postgres or contain database credentials.
 
-## Android client
+## Android client configuration
 
-The app signs in with AppAuth-Android: Authorization Code + PKCE (S256) in the system browser (Custom Tabs), per RFC 8252. It is a public client; no client secret exists anywhere. AppAuth generates and verifies `state`/`nonce`; the app additionally checks that the redirect answers its own request (state, client ID, redirect URI, PKCE method) and that the discovery document's `issuer` equals the configured issuer. The external access token is sent once to `POST /api/v1/auth/session` and is never stored; only AgentDock's opaque access/refresh tokens are kept, encrypted with an Android Keystore AES-256-GCM key in a dedicated DataStore file.
+The app uses AppAuth-Android with Authorization Code + PKCE (S256). AppAuth handles state/nonce and PKCE validation; the app additionally validates that the redirect belongs to its authorization request and that discovery's issuer matches the configured issuer. The external access token is exchanged once at `POST /api/v1/auth/session` and is not persisted. AgentDock's opaque access/refresh tokens are stored encrypted using Android Keystore AES-256-GCM in a dedicated DataStore file.
 
-Build-time configuration has **no defaults**. Pass Gradle properties (`-P…` or `~/.gradle/gradle.properties`); when any is missing or invalid the UI shows "sign-in not configured":
+Build-time Gradle properties have **no defaults**. Provide these using local `~/.gradle/gradle.properties` or protected build configuration; do not commit private deployment values:
 
 | Property | Meaning |
 |---|---|
-| `agentdockOidcIssuer` | Provider issuer, absolute HTTPS URL; discovery is fetched from it |
-| `agentdockOidcClientId` | Registered public client ID (must also be in `AGENTDOCK_OIDC_ALLOWED_CLIENT_IDS`) |
-| `agentdockOidcRedirectUri` | Private-use reverse-domain redirect, e.g. `com.example.app:/oauth2redirect` (RFC 8252 §7.1); its scheme becomes the manifest placeholder |
-| `agentdockOidcScope` | Space-separated scopes requested |
-| `agentdockOidcAudience` | Optional; sent as the `audience` authorization parameter for providers that need it |
+| `agentdockOidcIssuer` | Auth0 issuer URL, absolute HTTPS URL |
+| `agentdockOidcClientId` | Auth0 Native application client ID |
+| `agentdockOidcRedirectUri` | Private-use reverse-domain redirect URI; must match Auth0 Allowed Callback URLs |
+| `agentdockOidcScope` | Space-separated scopes, normally including `openid` |
+| `agentdockOidcAudience` | Exact AgentDock API Identifier |
 | `agentdockApiBaseUrl` | AgentDock API origin, HTTPS |
 
-Refresh is single-flight behind a mutex (refresh tokens are single-use, so concurrent use would be treated as replay). A request that receives 401 is retried at most once with the refreshed token. Sign-out clears local credentials immediately and then revokes the session remotely on a best-effort basis.
+Pass them as `-PagentdockOidcIssuer=...`, `-PagentdockOidcClientId=...`, `-PagentdockOidcRedirectUri=...`, `-PagentdockOidcScope=...`, `-PagentdockOidcAudience=...` and `-PagentdockApiBaseUrl=...`. The client ID and API Identifier are not client secrets. Never add a client secret or database password to Gradle properties included in the APK.
 
-## Not yet implemented
+Refresh is single-flight behind a mutex. A request that receives 401 is retried at most once with the refreshed AgentDock token. Sign-out clears local credentials immediately and then revokes the session remotely on a best-effort basis.
 
-- Choosing and configuring the actual OIDC provider and verifying its real access-token contract.
-- Verifying the Android flow against a real provider (the client is covered by unit tests and a fake-backed UI smoke test only).
-- Account profile/email verification, account linking, multiple workspaces and tenant switching.
-- Per-device session listing and remote revocation.
-- Expired session/token cleanup, retention schedule and rate limiting/abuse controls.
-- Task routes and membership enforcement on every tenant data operation.
-- Production deployment migration and secret provisioning.
+## Not yet verified or implemented
 
-Do not describe AgentDock as having end-to-end login until the Android flow has been integrated and tested against the chosen provider.
+- Auth0 tenant/API settings and an actual RFC 9068 token have not been verified against the deployed backend.
+- Android sign-in and task flows have not been exercised end-to-end against a live API and Supabase database.
+- Account profile/email verification, account linking, multiple workspaces and tenant switching remain separate work.
+- Per-device session listing/revocation, expiry cleanup, retention and rate limiting remain separate work.
+- Production deployment and secure secret provisioning remain pending.
+
+Do not describe AgentDock as having end-to-end login until Auth0 is configured and the Android flow has been exercised against the deployed API.
