@@ -28,13 +28,15 @@ def upgrade() -> None:
         "ON TABLE auth_identities, user_sessions, session_tokens "
         "TO agentdock_runtime"
     )
+    op.execute("GRANT SELECT, INSERT ON TABLE tenant_memberships TO agentdock_runtime")
+    op.execute("GRANT SELECT, INSERT ON TABLE tasks TO agentdock_runtime")
+    op.execute("GRANT SELECT, INSERT ON TABLE task_events TO agentdock_runtime")
     op.execute(
         "GRANT SELECT, INSERT, UPDATE, DELETE "
-        "ON TABLE tenant_memberships, tasks, task_events, idempotency_records "
-        "TO agentdock_runtime"
+        "ON TABLE idempotency_records TO agentdock_runtime"
     )
     op.execute("GRANT SELECT, UPDATE ON TABLE approvals TO agentdock_runtime")
-    op.execute("GRANT SELECT, INSERT ON TABLE audit_events TO agentdock_runtime")
+    op.execute("GRANT INSERT ON TABLE audit_events TO agentdock_runtime")
 
     # Worker: routing metadata plus tenant-scoped data protected by forced RLS.
     op.execute("GRANT SELECT, UPDATE ON TABLE task_dispatch TO agentdock_worker")
@@ -52,7 +54,7 @@ def upgrade() -> None:
     op.execute(
         "GRANT SELECT, INSERT, UPDATE ON TABLE approvals TO agentdock_worker"
     )
-    op.execute("GRANT SELECT, INSERT ON TABLE audit_events TO agentdock_worker")
+    op.execute("GRANT INSERT ON TABLE audit_events TO agentdock_worker")
     op.execute("GRANT SELECT ON TABLE tenant_memberships TO agentdock_worker")
     op.execute(
         "GRANT SELECT (id, is_active) ON TABLE users TO agentdock_worker"
@@ -64,7 +66,7 @@ def downgrade() -> None:
         "REVOKE SELECT (id, is_active) ON TABLE users FROM agentdock_worker"
     )
     op.execute("REVOKE SELECT ON TABLE tenant_memberships FROM agentdock_worker")
-    op.execute("REVOKE SELECT, INSERT ON TABLE audit_events FROM agentdock_worker")
+    op.execute("REVOKE INSERT ON TABLE audit_events FROM agentdock_worker")
     op.execute(
         "REVOKE SELECT, INSERT, UPDATE ON TABLE approvals FROM agentdock_worker"
     )
@@ -81,12 +83,16 @@ def downgrade() -> None:
     op.execute("REVOKE SELECT ON TABLE tasks FROM agentdock_worker")
     op.execute("REVOKE SELECT, UPDATE ON TABLE task_dispatch FROM agentdock_worker")
 
-    op.execute("REVOKE SELECT, INSERT ON TABLE audit_events FROM agentdock_runtime")
+    op.execute("REVOKE INSERT ON TABLE audit_events FROM agentdock_runtime")
     op.execute("REVOKE SELECT, UPDATE ON TABLE approvals FROM agentdock_runtime")
+    op.execute("REVOKE SELECT, INSERT ON TABLE task_events FROM agentdock_runtime")
+    op.execute("REVOKE SELECT, INSERT ON TABLE tasks FROM agentdock_runtime")
+    op.execute(
+        "REVOKE SELECT, INSERT ON TABLE tenant_memberships FROM agentdock_runtime"
+    )
     op.execute(
         "REVOKE SELECT, INSERT, UPDATE, DELETE "
-        "ON TABLE tenant_memberships, tasks, task_events, idempotency_records "
-        "FROM agentdock_runtime"
+        "ON TABLE idempotency_records FROM agentdock_runtime"
     )
     op.execute(
         "REVOKE SELECT, INSERT, UPDATE "
