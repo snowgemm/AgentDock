@@ -131,7 +131,7 @@ The resulting permissions are intentionally split:
 
 - `agentdock_runtime`: API identity/session and tenant task CRUD needed by FastAPI; approval decisions and append-only audit writes. No access to `task_dispatch`, `task_receipts`, or `agentdock_private`.
 - `agentdock_worker`: queue lease access, task status updates, task events, receipts/checkpoints, approval processing, audit inserts, membership reads and only `users.id/is_active` column reads.
-- `agentdock_dispatcher`: non-login owner of the trigger function, with only `INSERT` on `task_dispatch`.
+- `agentdock_dispatcher`: non-login owner of the trigger function, with `INSERT` plus `SELECT(task_id)` only on `task_dispatch`. The latter is the minimum column-level read permission required by `ON CONFLICT(task_id) DO NOTHING`; it cannot read the whole queue row.
 - `agentdock_migrator`: owns the schema objects it creates and applies Alembic revisions; never use it for API or worker traffic.
 
 Every tenant-owned table is protected by enabled and forced RLS. API/worker roles must not own tenant tables and must remain `NOBYPASSRLS`. The runtime role cannot access the worker queue directly. Do not grant `anon` or `authenticated` access to these application tables. Android must call the AgentDock API and never connect directly to Supabase Postgres.
