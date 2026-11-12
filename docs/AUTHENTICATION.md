@@ -13,7 +13,7 @@ The backend accepts only signed RFC 9068-style JWT access tokens with JOSE `typ`
 Auth0 supports the RFC 9068 access-token profile. Configure it on the **AgentDock API resource server**, not by changing the Android app to send an ID token:
 
 1. Create/select a custom API in Auth0 and choose a unique API Identifier. This exact string is the AgentDock API audience.
-2. Set the API's JWT access-token profile to **RFC 9068** and signing algorithm to **RS256**.
+2. In Auth0 Dashboard → Settings → Advanced → Access Token Profile, select **IETF JWT Profile for OAuth 2.0 Access Tokens (RFC 9068)**. Set the API signing algorithm to **RS256**.
 3. Register the Android application as a **Native** public client using Authorization Code + PKCE. Do not create or embed a client secret for the Android app.
 4. Add the exact private-use reverse-domain redirect URI configured in the Android build to the Auth0 Allowed Callback URLs.
 5. Use one Auth0 issuer domain consistently for discovery, token acquisition, issuer validation and JWKS lookup. Do not obtain tokens from a custom domain and validate against a different domain.
@@ -74,6 +74,23 @@ Build-time Gradle properties have **no defaults**. Provide these using local `~/
 | `agentdockApiBaseUrl` | AgentDock API origin, HTTPS |
 
 Pass them as `-PagentdockOidcIssuer=...`, `-PagentdockOidcClientId=...`, `-PagentdockOidcRedirectUri=...`, `-PagentdockOidcScope=...`, `-PagentdockOidcAudience=...` and `-PagentdockApiBaseUrl=...`. The client ID and API Identifier are not client secrets. Never add a client secret or database password to Gradle properties included in the APK.
+
+### Signed Test Preview build configuration
+
+The **Signed Android APK** workflow on branch `test` reads the following GitHub repository **Variables** and passes them into Gradle. They are public client/configuration values, not secrets:
+
+| GitHub Actions variable | Gradle property |
+|---|---|
+| `AGENTDOCK_OIDC_ISSUER` | `agentdockOidcIssuer` |
+| `AGENTDOCK_OIDC_CLIENT_ID` | `agentdockOidcClientId` |
+| `AGENTDOCK_OIDC_REDIRECT_URI` | `agentdockOidcRedirectUri` |
+| `AGENTDOCK_OIDC_SCOPE` | `agentdockOidcScope` |
+| `AGENTDOCK_OIDC_AUDIENCE` | `agentdockOidcAudience` |
+| `AGENTDOCK_API_BASE_URL` | `agentdockApiBaseUrl` |
+
+Add them under **GitHub → AgentDock → Settings → Secrets and variables → Actions → Variables**. The release workflow checks that all six are present, validates URL/redirect formats and requires the `openid` scope before it builds. This prevents publishing a signed APK that silently has sign-in disabled.
+
+For the `test` branch, run **Actions → Signed Android APK → Run workflow**, select branch `test` and channel `preview`. The Auth0 Native application must allow the exact redirect URI above. The workflow also requires the four signing secrets documented in `.github/workflows/release-apk.yml`; signing secrets must remain in GitHub Actions Secrets and must never be included in the APK or repository variables.
 
 Refresh is single-flight behind a mutex. A request that receives 401 is retried at most once with the refreshed AgentDock token. Sign-out clears local credentials immediately and then revokes the session remotely on a best-effort basis.
 
