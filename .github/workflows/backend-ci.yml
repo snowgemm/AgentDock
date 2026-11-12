@@ -111,3 +111,105 @@ jobs:
 
       - name: Build backend container
         run: docker build --tag agentdock-backend:ci .
+
+  deploy-supabase-test:
+    name: Apply Alembic migrations to AgentDock test Supabase
+    needs: test
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/test' && vars.AGENTDOCK_DEPLOY_SUPABASE_TEST == 'enabled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: agentdock-test-supabase-schema
+      cancel-in-progress: false
+    env:
+      AGENTDOCK_MIGRATION_DATABASE_URL: ${{ secrets.AGENTDOCK_TEST_MIGRATION_DATABASE_URL }}
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install backend dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+
+      - name: Verify target database and migration privileges
+        run: |
+          python - <<'PY'
+          import asyncio
+          import os
+          from sqlalchemy import text
+          from sqlalchemy.ext.asyncio import create_async_engine
+          from sqlalchemy.pool import NullPool
+
+          async def main() -> None:
+              url = os.environ.get("AGENTDOCK_MIGRATION_DATABASE_URL", "")
+              if not url.startswith("postgresql+asyncpg://"):
+                  raise SystemExit("AGENTDOCK_TEST_MIGRATION_DATABASE_URL is missing or has the wrong SQLAlchemy URL scheme.")
+
+              engine = create_async_engine(url, poolclass=NullPool, connect_args={"timeout": 10})
+              try:
+                  async with engine.connect() as conn:
+                      target = (
+                          await conn.execute(text(
+                              "SELECT current_database(), current_user, "
+                              "current_setting('server_version_num')::integer"
+                          ))
+                      ).one()
+                      roles = (
+                          await conn.execute(text("""
+                              SELECT count(*) = 4 AS all_roles_exist,
+                                     bool_and(NOT rolsuper AND NOT rolbypassrls
+                                              AND NOT rolcreatedb AND NOT rolcreaterole) AS roles_restricted,
+                                     bool_and(rolcanlogin) FILTER (
+                                       WHERE rolname IN ('agentdock_migrator', 'agentdock_runtime', 'agentdock_worker')
+                                     ) AS service_roles_can_login,
+                                     bool_and(NOT rolcanlogin) FILTER (
+                                       WHERE rolname = 'agentdock_dispatcher'
+                                     ) AS dispatcher_cannot_login
+                              FROM pg_roles
+                              WHERE rolname IN (
+                                'agentdock_migrator', 'agentdock_runtime',
+                                'agentdock_worker', 'agentdock_dispatcher'
+                              )
+                          """))
+                      ).one()
+                      grants = (
+                          await conn.execute(text("""
+                              SELECT
+                                pg_has_role('agentdock_migrator', 'agentdock_dispatcher', 'MEMBER') AS dispatcher_membership,
+                                has_database_privilege('agentdock_migrator', 'postgres', 'CONNECT') AS database_connect,
+                                has_database_privilege('agentdock_migrator', 'postgres', 'CREATE') AS database_create,
+                                has_schema_privilege('agentdock_migrator', 'public', 'CREATE') AS schema_create
+                          """))
+                      ).one()
+
+                  if target[0] != "postgres" or target[1] != "agentdock_migrator":
+                      raise SystemExit("Refusing deployment: expected database=postgres and role=agentdock_migrator.")
+                  if not 170000 <= target[2] < 180000:
+                      raise SystemExit("Refusing deployment: target must be PostgreSQL 17.")
+                  if not (roles.all_roles_exist and roles.roles_restricted
+                          and roles.service_roles_can_login and roles.dispatcher_cannot_login):
+                      raise SystemExit("Refusing deployment: AgentDock role flags are missing or unsafe.")
+                  if not (grants.dispatcher_membership and grants.database_connect
+                          and grants.database_create and grants.schema_create):
+                      raise SystemExit("Refusing deployment: required migration privileges are missing.")
+                  print("Supabase target, PostgreSQL version, role flags and migration grants verified.")
+              finally:
+                  await engine.dispose()
+
+          asyncio.run(main())
+          PY
+
+      - name: Apply forward-only Alembic migrations
+        run: python -m alembic upgrade head
+
+      - name: Verify migration head and schema drift
+        run: |
+          python -m alembic current
+          python -m alembic check
