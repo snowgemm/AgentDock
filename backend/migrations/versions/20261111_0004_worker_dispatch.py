@@ -101,25 +101,27 @@ def upgrade() -> None:
         $function$
         """
     )
-    op.execute("RESET ROLE")
-    # The migration role needs EXECUTE only while attaching the trigger.
+    # The function owner grants CREATE TRIGGER permission to the migration role.
     op.execute(
         "GRANT EXECUTE ON FUNCTION agentdock_private.enqueue_task_dispatch() "
         "TO agentdock_migrator"
     )
+    op.execute(
+        "REVOKE ALL ON FUNCTION agentdock_private.enqueue_task_dispatch() FROM PUBLIC"
+    )
+    op.execute("RESET ROLE")
     op.execute(
         """
         CREATE TRIGGER tasks_enqueue_dispatch AFTER INSERT ON public.tasks
         FOR EACH ROW EXECUTE FUNCTION agentdock_private.enqueue_task_dispatch()
         """
     )
-    op.execute(
-        "REVOKE ALL ON FUNCTION agentdock_private.enqueue_task_dispatch() FROM PUBLIC"
-    )
+    op.execute("SET LOCAL ROLE agentdock_dispatcher")
     op.execute(
         "REVOKE EXECUTE ON FUNCTION agentdock_private.enqueue_task_dispatch() "
         "FROM agentdock_migrator"
     )
+    op.execute("RESET ROLE")
 
     # Backfill tasks created before this migration. tasks has FORCE RLS, so scope the
     # transaction to each tenant in turn (tenants itself is not RLS protected).
