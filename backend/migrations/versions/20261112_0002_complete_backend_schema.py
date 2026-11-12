@@ -158,14 +158,6 @@ def upgrade() -> None:
         "REVOKE EXECUTE ON FUNCTION agentdock_private.enqueue_task_dispatch() "
         "FROM agentdock_migrator"
     )
-    op.execute(
-        "GRANT USAGE ON SCHEMA agentdock_private TO agentdock_runtime"
-    )
-    op.execute(
-        "GRANT EXECUTE ON FUNCTION agentdock_private.enqueue_task_dispatch() "
-        "TO agentdock_runtime"
-    )
-
     op.create_table(
         "task_receipts",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
