@@ -72,6 +72,7 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
                             "has_table_privilege('agentdock_worker', 'task_dispatch', 'SELECT') AS worker_dispatch_select, "
                             "has_table_privilege('agentdock_worker', 'task_dispatch', 'UPDATE') AS worker_dispatch_update, "
                             "has_database_privilege('agentdock_migrator', current_database(), 'CREATE') AS migrator_database_create, "
+                            "has_schema_privilege('agentdock_runtime', 'agentdock_private', 'USAGE') AS runtime_private_schema_usage, "
                             "has_function_privilege('agentdock_runtime', 'agentdock_private.enqueue_task_dispatch()', 'EXECUTE') AS runtime_trigger_execute, "
                             "has_function_privilege('anon', 'agentdock_private.enqueue_task_dispatch()', 'EXECUTE') AS anon_trigger_execute, "
                             "has_function_privilege('authenticated', 'agentdock_private.enqueue_task_dispatch()', 'EXECUTE') AS authenticated_trigger_execute, "
@@ -93,7 +94,8 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
                 assert grants.worker_dispatch_select is True
                 assert grants.worker_dispatch_update is True
                 assert grants.migrator_database_create is True
-                assert grants.runtime_trigger_execute is True
+                assert grants.runtime_private_schema_usage is False
+                assert grants.runtime_trigger_execute is False
                 assert grants.anon_trigger_execute is False
                 assert grants.authenticated_trigger_execute is False
                 assert grants.schema_create is False
