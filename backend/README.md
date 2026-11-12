@@ -97,14 +97,9 @@ The initial task API is documented in `docs/TASK_API.md`. Task creation atomical
 The durable worker runs from the same image: `python -m app.worker` (see `docs/WORKER.md`). It uses its own least-privilege role and URL (`AGENTDOCK_WORKER_DATABASE_URL`); never reuse the runtime or migrator role, and never give it `BYPASSRLS`:
 
 ```sql
--- Provision these roles before running Alembic (as the Supabase postgres/admin role).
--- agentdock_dispatcher is NOLOGIN and is used only as the owner of one private trigger function.
-CREATE ROLE agentdock_dispatcher NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-GRANT agentdock_dispatcher TO agentdock_migrator;
+-- The worker and dispatcher roles were provisioned in the role setup section above.
 GRANT CONNECT ON DATABASE agentdock TO agentdock_worker;
 GRANT USAGE ON SCHEMA public TO agentdock_worker;
--- The migrator also needs CREATE on the database to create its private trigger schema.
-GRANT CREATE ON DATABASE agentdock TO agentdock_migrator;
 -- after `alembic upgrade head`, as the migration role:
 GRANT SELECT, UPDATE ON TABLE task_dispatch TO agentdock_worker;
 GRANT SELECT ON TABLE tasks TO agentdock_worker;
