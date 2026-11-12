@@ -66,6 +66,12 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
                             "has_table_privilege('agentdock_runtime', 'user_sessions', 'INSERT') AS session_insert, "
                             "has_table_privilege('agentdock_runtime', 'session_tokens', 'INSERT') AS token_insert, "
                             "has_table_privilege('agentdock_runtime', 'tasks', 'INSERT') AS task_insert, "
+                            "has_table_privilege('agentdock_runtime', 'tasks', 'UPDATE') AS runtime_task_update, "
+                            "has_table_privilege('agentdock_runtime', 'tasks', 'DELETE') AS runtime_task_delete, "
+                            "has_table_privilege('agentdock_runtime', 'task_events', 'INSERT') AS runtime_event_insert, "
+                            "has_table_privilege('agentdock_runtime', 'idempotency_records', 'DELETE') AS runtime_idempotency_delete, "
+                            "has_table_privilege('agentdock_runtime', 'audit_events', 'SELECT') AS runtime_audit_read, "
+                            "has_table_privilege('agentdock_runtime', 'audit_events', 'INSERT') AS runtime_audit_insert, "
                             "has_table_privilege('agentdock_runtime', 'alembic_version', 'SELECT') AS migration_history_read, "
                             "has_table_privilege('agentdock_runtime', 'task_dispatch', 'INSERT') AS runtime_dispatch_insert, "
                             "has_table_privilege('agentdock_dispatcher', 'task_dispatch', 'INSERT') AS dispatcher_insert, "
@@ -107,6 +113,12 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
                 assert grants.session_insert is True
                 assert grants.token_insert is True
                 assert grants.task_insert is True
+                assert grants.runtime_task_update is False
+                assert grants.runtime_task_delete is False
+                assert grants.runtime_event_insert is True
+                assert grants.runtime_idempotency_delete is True
+                assert grants.runtime_audit_read is False
+                assert grants.runtime_audit_insert is True
                 assert grants.migration_history_read is False
                 assert grants.runtime_dispatch_insert is False
                 assert grants.dispatcher_insert is True
