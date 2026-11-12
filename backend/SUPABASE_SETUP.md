@@ -106,6 +106,23 @@ The current migration head is `20261112_0008`. It creates the tenant, identity/s
 
 Do not run `alembic downgrade base` against the Supabase project. That rollback is only part of the disposable PostgreSQL CI test.
 
+### Deploy from GitHub Actions (no local PostgreSQL tools needed)
+
+The `Backend CI` workflow on branch `test` has a separate, guarded migration job. It runs only when all of these conditions are true:
+
+1. You manually run **Actions → Backend CI → Run workflow** and select branch `test`.
+2. The normal Backend CI test job completes successfully.
+3. Repository variable `AGENTDOCK_DEPLOY_SUPABASE_TEST` is set to the exact value `enabled`.
+4. Repository secret `AGENTDOCK_TEST_MIGRATION_DATABASE_URL` contains the dedicated migrator URL from step 3.
+
+Set these in **GitHub → AgentDock → Settings → Secrets and variables → Actions**:
+- Under **Secrets**, add `AGENTDOCK_TEST_MIGRATION_DATABASE_URL`.
+- Under **Variables**, add `AGENTDOCK_DEPLOY_SUPABASE_TEST` = `enabled`.
+
+The job checks that the connection really reaches database `postgres` as `agentdock_migrator`, verifies PostgreSQL 17, all four restricted roles and required privileges, then runs only `alembic upgrade head` and `alembic check`. It never runs a downgrade. Normal pushes and pull requests do not deploy to Supabase.
+
+Do not enable the variable until the three login role passwords and the migrator connection URL are safely configured. If the manual workflow does not show the `test` branch, use the local Alembic commands above; never add the secret to the repository or paste it into chat.
+
 ## 5. Apply least-privilege runtime and worker grants
 
 Alembic revision `20261112_0008` applies the table grants automatically after the schema migrations. This keeps PostgreSQL CI and Supabase deployments on the same permission source of truth. Do not run a second, separate grant script.
@@ -177,7 +194,7 @@ The worker will **not** execute model tasks until an approved handler/provider i
 
 ## Deployment boundaries
 
-- `.github/workflows/backend-ci.yml` tests migrations and permissions against a disposable PostgreSQL 17 service. It does not deploy to Supabase.
+- `.github/workflows/backend-ci.yml` tests migrations and permissions against disposable PostgreSQL 17. A separate manual job can apply forward-only Alembic upgrades to Supabase `test` only when the explicit repository variable and migration secret are configured.
 - Never point backend CI's rollback/re-apply test at the Supabase project.
 - The four `NOLOGIN` AgentDock roles and base database/schema grants were provisioned and verified on 2026-11-12. No application tables or Alembic migrations have yet been applied. Keep the three service roles unable to login until you have set unique passwords and stored their connection URLs in the protected secret store.
 - A free Render Web Service is suitable for API testing but sleeps after 15 minutes without inbound traffic. Free Render does not offer a free always-on Background Worker. Use a local worker for development/testing or choose an always-on worker host only after reviewing its cost and availability. Do not assume an always-on worker can be run continuously on Render Free.
