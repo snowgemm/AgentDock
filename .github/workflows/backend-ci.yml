@@ -86,6 +86,7 @@ jobs:
             NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
           GRANT agentdock_dispatcher TO agentdock_migrator;
           GRANT CONNECT ON DATABASE agentdock TO agentdock_migrator, agentdock_runtime, agentdock_worker;
+          GRANT CREATE ON DATABASE agentdock TO agentdock_migrator;
           GRANT USAGE, CREATE ON SCHEMA public TO agentdock_migrator;
           GRANT USAGE ON SCHEMA public TO agentdock_runtime, agentdock_worker;
           SQL
