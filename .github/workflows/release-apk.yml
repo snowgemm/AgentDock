@@ -56,6 +56,59 @@ jobs:
       - name: Run release preflight checks
         run: ./gradlew --no-daemon --stacktrace lintDebug testDebugUnitTest
 
+      - name: Validate app deployment configuration
+        shell: bash
+        env:
+          OIDC_ISSUER: ${{ vars.AGENTDOCK_OIDC_ISSUER }}
+          OIDC_CLIENT_ID: ${{ vars.AGENTDOCK_OIDC_CLIENT_ID }}
+          OIDC_REDIRECT_URI: ${{ vars.AGENTDOCK_OIDC_REDIRECT_URI }}
+          OIDC_SCOPE: ${{ vars.AGENTDOCK_OIDC_SCOPE }}
+          OIDC_AUDIENCE: ${{ vars.AGENTDOCK_OIDC_AUDIENCE }}
+          API_BASE_URL: ${{ vars.AGENTDOCK_API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in OIDC_ISSUER OIDC_CLIENT_ID OIDC_REDIRECT_URI OIDC_SCOPE OIDC_AUDIENCE API_BASE_URL; do
+            [[ -n "${!name:-}" ]] || missing+=("$name")
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required GitHub Actions variables:'
+            printf ' %s' "${missing[@]}"
+            printf '\nConfigure the AgentDock Test OIDC/API variables before publishing a usable APK.\n' >&2
+            exit 1
+          fi
+
+          python - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+
+          def https_url(name: str) -> None:
+              value = os.environ[name]
+              parsed = urlsplit(value)
+              if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
+                      or parsed.password is not None or parsed.query or parsed.fragment):
+                  raise SystemExit(f"{name} must be an absolute HTTPS URL without credentials, query or fragment.")
+
+          https_url("OIDC_ISSUER")
+          https_url("API_BASE_URL")
+
+          redirect = urlsplit(os.environ["OIDC_REDIRECT_URI"])
+          scheme = redirect.scheme
+          if (not scheme or "." not in scheme or scheme != scheme.lower()
+                  or scheme in {"http", "https", "javascript", "data"}
+                  or redirect.username is not None or redirect.password is not None
+                  or redirect.query or redirect.fragment):
+              raise SystemExit("OIDC_REDIRECT_URI must use a private-use reverse-domain scheme and contain no credentials, query or fragment.")
+
+          if any(ch.isspace() for ch in os.environ["OIDC_CLIENT_ID"]):
+              raise SystemExit("OIDC_CLIENT_ID must not contain whitespace.")
+          if "openid" not in os.environ["OIDC_SCOPE"].split():
+              raise SystemExit("OIDC_SCOPE must include the openid scope.")
+          if any(ch.isspace() for ch in os.environ["OIDC_AUDIENCE"]):
+              raise SystemExit("OIDC_AUDIENCE must not contain whitespace.")
+          print("OIDC/API build configuration is present and has valid URL formats.")
+          PY
+
       - name: Validate and prepare signing key
         shell: bash
         env:
@@ -136,12 +189,24 @@ jobs:
           AGENTDOCK_KEY_PASSWORD: ${{ secrets.AGENTDOCK_KEY_PASSWORD }}
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: ${{ inputs.version_name }}
+          OIDC_ISSUER: ${{ vars.AGENTDOCK_OIDC_ISSUER }}
+          OIDC_CLIENT_ID: ${{ vars.AGENTDOCK_OIDC_CLIENT_ID }}
+          OIDC_REDIRECT_URI: ${{ vars.AGENTDOCK_OIDC_REDIRECT_URI }}
+          OIDC_SCOPE: ${{ vars.AGENTDOCK_OIDC_SCOPE }}
+          OIDC_AUDIENCE: ${{ vars.AGENTDOCK_OIDC_AUDIENCE }}
+          API_BASE_URL: ${{ vars.AGENTDOCK_API_BASE_URL }}
         shell: bash
         run: |
           set -euo pipefail
           ./gradlew --no-daemon --stacktrace \
             -PagentdockVersionCode="$VERSION_CODE" \
             -PagentdockVersionName="$VERSION_NAME" \
+            -PagentdockOidcIssuer="$OIDC_ISSUER" \
+            -PagentdockOidcClientId="$OIDC_CLIENT_ID" \
+            -PagentdockOidcRedirectUri="$OIDC_REDIRECT_URI" \
+            -PagentdockOidcScope="$OIDC_SCOPE" \
+            -PagentdockOidcAudience="$OIDC_AUDIENCE" \
+            -PagentdockApiBaseUrl="$API_BASE_URL" \
             assembleRelease
 
       - name: Verify APK signature and calculate checksum
