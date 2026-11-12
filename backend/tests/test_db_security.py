@@ -75,6 +75,8 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
                             "has_table_privilege('agentdock_runtime', 'alembic_version', 'SELECT') AS migration_history_read, "
                             "has_table_privilege('agentdock_runtime', 'task_dispatch', 'INSERT') AS runtime_dispatch_insert, "
                             "has_table_privilege('agentdock_dispatcher', 'task_dispatch', 'INSERT') AS dispatcher_insert, "
+                            "has_column_privilege('agentdock_dispatcher', 'task_dispatch', 'task_id', 'SELECT') AS dispatcher_task_id_select, "
+                            "has_table_privilege('agentdock_dispatcher', 'task_dispatch', 'SELECT') AS dispatcher_full_select, "
                             "has_table_privilege('agentdock_worker', 'task_dispatch', 'SELECT') AS worker_dispatch_select, "
                             "has_table_privilege('agentdock_worker', 'task_dispatch', 'UPDATE') AS worker_dispatch_update, "
                             "has_database_privilege('agentdock_migrator', current_database(), 'CREATE') AS migrator_database_create, "
@@ -122,6 +124,8 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
                 assert grants.migration_history_read is False
                 assert grants.runtime_dispatch_insert is False
                 assert grants.dispatcher_insert is True
+                assert grants.dispatcher_task_id_select is True
+                assert grants.dispatcher_full_select is False
                 assert grants.worker_dispatch_select is True
                 assert grants.worker_dispatch_update is True
                 assert grants.migrator_database_create is True
