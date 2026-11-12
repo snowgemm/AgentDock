@@ -71,6 +71,7 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
                             "has_table_privilege('agentdock_runtime', 'task_events', 'INSERT') AS runtime_event_insert, "
                             "has_table_privilege('agentdock_runtime', 'idempotency_records', 'DELETE') AS runtime_idempotency_delete, "
                             "has_table_privilege('agentdock_runtime', 'audit_events', 'SELECT') AS runtime_audit_read, "
+                            "has_column_privilege('agentdock_runtime', 'audit_events', 'created_at', 'SELECT') AS runtime_audit_created_at_read, "
                             "has_table_privilege('agentdock_runtime', 'audit_events', 'INSERT') AS runtime_audit_insert, "
                             "has_table_privilege('agentdock_runtime', 'alembic_version', 'SELECT') AS migration_history_read, "
                             "has_table_privilege('agentdock_runtime', 'task_dispatch', 'INSERT') AS runtime_dispatch_insert, "
@@ -79,6 +80,8 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
                             "has_table_privilege('agentdock_dispatcher', 'task_dispatch', 'SELECT') AS dispatcher_full_select, "
                             "has_table_privilege('agentdock_worker', 'task_dispatch', 'SELECT') AS worker_dispatch_select, "
                             "has_table_privilege('agentdock_worker', 'task_dispatch', 'UPDATE') AS worker_dispatch_update, "
+                            "has_table_privilege('agentdock_worker', 'audit_events', 'SELECT') AS worker_audit_read, "
+                            "has_column_privilege('agentdock_worker', 'audit_events', 'created_at', 'SELECT') AS worker_audit_created_at_read, "
                             "has_database_privilege('agentdock_migrator', current_database(), 'CREATE') AS migrator_database_create, "
                             "has_schema_privilege('agentdock_runtime', 'agentdock_private', 'USAGE') AS runtime_private_schema_usage, "
                             "has_schema_privilege('anon', 'agentdock_private', 'USAGE') AS anon_private_schema_usage, "
@@ -120,7 +123,10 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
                 assert grants.runtime_event_insert is True
                 assert grants.runtime_idempotency_delete is True
                 assert grants.runtime_audit_read is False
+                assert grants.runtime_audit_created_at_read is True
                 assert grants.runtime_audit_insert is True
+                assert grants.worker_audit_read is False
+                assert grants.worker_audit_created_at_read is True
                 assert grants.migration_history_read is False
                 assert grants.runtime_dispatch_insert is False
                 assert grants.dispatcher_insert is True
