@@ -94,6 +94,13 @@ jobs:
       - name: Apply database migrations
         run: python -m alembic upgrade head
 
+      - name: Verify migration rollback and re-apply
+        run: |
+          python -m alembic current
+          python -m alembic check
+          python -m alembic downgrade base
+          python -m alembic upgrade head
+
       - name: Grant least-privilege runtime table access
         env:
           PGPASSWORD: ci-migrator-password
