@@ -266,7 +266,10 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("DROP TRIGGER IF EXISTS trg_tasks_enqueue_dispatch ON public.tasks")
+    # The function is owned by the isolated NOLOGIN dispatcher role.
+    op.execute("SET LOCAL ROLE agentdock_dispatcher")
     op.execute("DROP FUNCTION IF EXISTS agentdock_private.enqueue_task_dispatch()")
+    op.execute("RESET ROLE")
     op.execute("DROP SCHEMA IF EXISTS agentdock_private")
     for table_name in ("audit_events", "approvals", "task_checkpoints", "task_receipts"):
         op.drop_table(table_name)
