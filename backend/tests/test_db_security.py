@@ -69,6 +69,9 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
                             "has_table_privilege('agentdock_runtime', 'alembic_version', 'SELECT') AS migration_history_read, "
                             "has_table_privilege('agentdock_runtime', 'task_dispatch', 'INSERT') AS runtime_dispatch_insert, "
                             "has_table_privilege('agentdock_dispatcher', 'task_dispatch', 'INSERT') AS dispatcher_insert, "
+                            "has_table_privilege('agentdock_worker', 'task_dispatch', 'SELECT') AS worker_dispatch_select, "
+                            "has_table_privilege('agentdock_worker', 'task_dispatch', 'UPDATE') AS worker_dispatch_update, "
+                            "has_database_privilege('agentdock_migrator', current_database(), 'CREATE') AS migrator_database_create, "
                             "has_function_privilege('agentdock_runtime', 'agentdock_private.enqueue_task_dispatch()', 'EXECUTE') AS runtime_trigger_execute, "
                             "has_function_privilege('anon', 'agentdock_private.enqueue_task_dispatch()', 'EXECUTE') AS anon_trigger_execute, "
                             "has_function_privilege('authenticated', 'agentdock_private.enqueue_task_dispatch()', 'EXECUTE') AS authenticated_trigger_execute, "
@@ -87,6 +90,9 @@ def test_runtime_role_is_restricted_and_tenant_tables_force_rls() -> None:
                 assert grants.migration_history_read is False
                 assert grants.runtime_dispatch_insert is False
                 assert grants.dispatcher_insert is True
+                assert grants.worker_dispatch_select is True
+                assert grants.worker_dispatch_update is True
+                assert grants.migrator_database_create is True
                 assert grants.runtime_trigger_execute is True
                 assert grants.anon_trigger_execute is False
                 assert grants.authenticated_trigger_execute is False
@@ -195,6 +201,35 @@ def test_tenant_context_is_transaction_local_and_blocks_cross_tenant_writes() ->
                                 "user_a": user_a_id,
                             },
                         )
+
+            # The unprivileged API role can create a tenant task; the trigger,
+            # not the API role, writes the dispatch row through its narrow owner role.
+            runtime_task = uuid4()
+            async with runtime_engine.begin() as connection:
+                await connection.execute(
+                    text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
+                    {"tenant_id": str(tenant_a)},
+                )
+                await connection.execute(
+                    text(
+                        "INSERT INTO tasks "
+                        "(id, tenant_id, created_by_user_id, title, prompt) "
+                        "VALUES (:task_id, :tenant_id, :user_id, 'Runtime trigger test', 'safe test')"
+                    ),
+                    {"task_id": runtime_task, "tenant_id": tenant_a, "user_id": user_a_id},
+                )
+
+            async with admin_engine.connect() as connection:
+                dispatched = (
+                    await connection.execute(
+                        text(
+                            "SELECT task_id, tenant_id FROM task_dispatch WHERE task_id = :task_id"
+                        ),
+                        {"task_id": runtime_task},
+                    )
+                ).one()
+                assert dispatched.task_id == runtime_task
+                assert dispatched.tenant_id == tenant_a
 
             async with runtime_engine.connect() as connection:
                 async with connection.begin():
