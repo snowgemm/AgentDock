@@ -84,6 +84,10 @@ def upgrade() -> None:
     op.execute("GRANT USAGE, CREATE ON SCHEMA agentdock_private TO agentdock_dispatcher")
     op.execute("GRANT USAGE ON SCHEMA public TO agentdock_dispatcher")
     op.execute("GRANT INSERT ON TABLE public.task_dispatch TO agentdock_dispatcher")
+    # ON CONFLICT (task_id) reads the conflict target, so grant only that column.
+    op.execute(
+        "GRANT SELECT (task_id) ON TABLE public.task_dispatch TO agentdock_dispatcher"
+    )
     op.execute("SET LOCAL ROLE agentdock_dispatcher")
     op.execute(
         """
@@ -154,5 +158,9 @@ def downgrade() -> None:
     op.execute("DROP FUNCTION IF EXISTS agentdock_private.enqueue_task_dispatch()")
     op.execute("RESET ROLE")
     op.execute("DROP SCHEMA IF EXISTS agentdock_private")
+    op.execute(
+        "REVOKE SELECT (task_id), INSERT ON TABLE public.task_dispatch "
+        "FROM agentdock_dispatcher"
+    )
     op.drop_table("task_receipts")
     op.drop_table("task_dispatch")
