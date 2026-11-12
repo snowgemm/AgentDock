@@ -20,6 +20,10 @@ The API now has an optional OIDC JWT access-token verification boundary. When co
 
 This is the first end-to-end backend execution slice, not the complete product workflow. The API implements OIDC identity verification, revocable AgentDock sessions, task create/list/detail/event reads, approvals and an SSE task-event stream. Task creation persists the task, first event, idempotency response and worker dispatch row atomically. The durable worker uses PostgreSQL leases, fencing, retries, receipts and checkpoints; the optional single-agent handler uses the OpenAI provider only when `AGENTDOCK_WORKER_HANDLER=agent`, `AGENTDOCK_OPENAI_MODEL` and `OPENAI_API_KEY` are configured. Without a configured handler/provider, tasks remain safely queued. Task lifecycle commands such as pause/resume/cancel, additional provider adapters and broader multi-agent orchestration remain separate work. Android Authorization Code + PKCE and provider-specific token-contract verification are also separate work. The internal session endpoints require a trusted, configured OIDC issuer and the database migrations/runtime grants before use. Every tenant task request verifies active membership after setting transaction-local RLS context. The API creates a bounded async engine during application lifespan and disposes it on shutdown.
 
+## Supabase deployment
+
+For the verified Supabase project, see [SUPABASE_SETUP.md](SUPABASE_SETUP.md). The database name in Supabase connection URLs and grants is `postgres`; the local CI database name `agentdock` is not used there. Apply the existing Alembic chain with the dedicated migration role, then apply the separate API/worker grants. Do not use the Supabase dashboard migration API to create a second, competing schema history.
+
 ## Database roles and tenant isolation
 
 Use different database principals for migrations and normal API/worker traffic:
