@@ -78,23 +78,47 @@ def upgrade() -> None:
         f"USING ({tenant_expression}) WITH CHECK ({tenant_expression})"
     )
 
+    # Keep the trigger's SECURITY DEFINER owner separate from both the API
+    # runtime and the migration owner. It can only enqueue routing identifiers.
+    op.execute("CREATE SCHEMA agentdock_private AUTHORIZATION agentdock_migrator")
+    op.execute("GRANT USAGE, CREATE ON SCHEMA agentdock_private TO agentdock_dispatcher")
+    op.execute("GRANT USAGE ON SCHEMA public TO agentdock_dispatcher")
+    op.execute("GRANT INSERT ON TABLE public.task_dispatch TO agentdock_dispatcher")
+    op.execute("SET LOCAL ROLE agentdock_dispatcher")
     op.execute(
         """
-        CREATE FUNCTION agentdock_enqueue_task() RETURNS trigger
-        LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+        CREATE FUNCTION agentdock_private.enqueue_task_dispatch() RETURNS trigger
+        LANGUAGE plpgsql
+        SECURITY DEFINER
+        SET search_path = pg_catalog
+        AS $function$
         BEGIN
-            INSERT INTO task_dispatch (task_id, tenant_id)
+            INSERT INTO public.task_dispatch (task_id, tenant_id)
             VALUES (NEW.id, NEW.tenant_id)
             ON CONFLICT (task_id) DO NOTHING;
             RETURN NEW;
-        END
-        $$
+        END;
+        $function$
         """
     )
-    op.execute("REVOKE ALL ON FUNCTION agentdock_enqueue_task() FROM PUBLIC")
+    op.execute("RESET ROLE")
+    # The migration role needs EXECUTE only while attaching the trigger.
     op.execute(
-        "CREATE TRIGGER tasks_enqueue_dispatch AFTER INSERT ON tasks "
-        "FOR EACH ROW EXECUTE FUNCTION agentdock_enqueue_task()"
+        "GRANT EXECUTE ON FUNCTION agentdock_private.enqueue_task_dispatch() "
+        "TO agentdock_migrator"
+    )
+    op.execute(
+        """
+        CREATE TRIGGER tasks_enqueue_dispatch AFTER INSERT ON public.tasks
+        FOR EACH ROW EXECUTE FUNCTION agentdock_private.enqueue_task_dispatch()
+        """
+    )
+    op.execute(
+        "REVOKE ALL ON FUNCTION agentdock_private.enqueue_task_dispatch() FROM PUBLIC"
+    )
+    op.execute(
+        "REVOKE EXECUTE ON FUNCTION agentdock_private.enqueue_task_dispatch() "
+        "FROM agentdock_migrator"
     )
 
     # Backfill tasks created before this migration. tasks has FORCE RLS, so scope the
@@ -123,6 +147,10 @@ def upgrade() -> None:
 def downgrade() -> None:
     # Dropping task_dispatch discards in-flight leases: stop all workers first.
     op.execute("DROP TRIGGER IF EXISTS tasks_enqueue_dispatch ON tasks")
-    op.execute("DROP FUNCTION IF EXISTS agentdock_enqueue_task()")
+    # The private trigger function is owned by the isolated dispatcher role.
+    op.execute("SET LOCAL ROLE agentdock_dispatcher")
+    op.execute("DROP FUNCTION IF EXISTS agentdock_private.enqueue_task_dispatch()")
+    op.execute("RESET ROLE")
+    op.execute("DROP SCHEMA IF EXISTS agentdock_private")
     op.drop_table("task_receipts")
     op.drop_table("task_dispatch")
