@@ -147,13 +147,14 @@ def executor(effects: Effects, *, ttl: float = 30.0, tool: ToolDefinition | None
 
 
 async def pending_id(env: Env, task_id: UUID, timeout: float = 5.0) -> UUID:
+    """Wait for both the approval row and its task-state transition to commit."""
     for _ in range(int(timeout / 0.05)):
         found = await env.scalar("SELECT id FROM approvals WHERE task_id = :t AND status = 'PENDING' "
                                  "ORDER BY created_at DESC LIMIT 1", t=task_id)
-        if found:
+        if found and await env.status(task_id) == "WAITING_APPROVAL":
             return found
         await asyncio.sleep(0.05)
-    raise AssertionError("no pending approval appeared")
+    raise AssertionError("approval did not reach WAITING_APPROVAL")
 
 
 async def set_approval(env: Env, approval_id: UUID, status: str) -> None:
