@@ -102,42 +102,23 @@ python -m alembic current
 python -m alembic check
 ```
 
-The current migration head is `20261113_0007`. It creates the tenant, identity/session, task, dispatch, event, checkpoint, approval and audit schema. The worker-dispatch migration requires the role membership and database/schema grants from step 2.
+The current migration head is `20261112_0008`. It creates the tenant, identity/session, task, dispatch, event, checkpoint, approval and audit schema. The worker-dispatch migration requires the role membership and database/schema grants from step 2.
 
 Do not run `alembic downgrade base` against the Supabase project. That rollback is only part of the disposable PostgreSQL CI test.
 
-## 5. Grant runtime and worker table access
+## 5. Apply least-privilege runtime and worker grants
 
-After `alembic upgrade head` succeeds, connect as `agentdock_migrator` or the database administrator and run:
+Alembic revision `20261112_0008` applies the table grants automatically after the schema migrations. This keeps PostgreSQL CI and Supabase deployments on the same permission source of truth. Do not run a second, separate grant script.
 
-```sql
--- FastAPI runtime: no access to task_dispatch or task_receipts.
-GRANT SELECT, INSERT ON TABLE tenants, users TO agentdock_runtime;
-GRANT SELECT, INSERT, UPDATE
-  ON TABLE auth_identities, user_sessions, session_tokens
-  TO agentdock_runtime;
-GRANT SELECT, INSERT, UPDATE, DELETE
-  ON TABLE tenant_memberships, tasks, task_events, idempotency_records
-  TO agentdock_runtime;
-GRANT SELECT, UPDATE ON TABLE approvals TO agentdock_runtime;
-GRANT SELECT, INSERT ON TABLE audit_events TO agentdock_runtime;
+The resulting permissions are intentionally split:
 
--- Worker: narrowly scoped task execution and routing access.
-GRANT SELECT, UPDATE ON TABLE task_dispatch TO agentdock_worker;
-GRANT SELECT ON TABLE tasks TO agentdock_worker;
-GRANT UPDATE (status, updated_at) ON TABLE tasks TO agentdock_worker;
-GRANT SELECT, INSERT ON TABLE task_events TO agentdock_worker;
-GRANT SELECT, INSERT, UPDATE ON TABLE task_receipts TO agentdock_worker;
-GRANT SELECT, INSERT, UPDATE ON TABLE task_checkpoints TO agentdock_worker;
-GRANT SELECT, INSERT, UPDATE ON TABLE approvals TO agentdock_worker;
-GRANT SELECT, INSERT ON TABLE audit_events TO agentdock_worker;
-GRANT SELECT ON TABLE tenant_memberships TO agentdock_worker;
-GRANT SELECT (id, is_active) ON TABLE users TO agentdock_worker;
-```
+- `agentdock_runtime`: API identity/session and tenant task CRUD needed by FastAPI; approval decisions and append-only audit writes. No access to `task_dispatch`, `task_receipts`, or `agentdock_private`.
+- `agentdock_worker`: queue lease access, task status updates, task events, receipts/checkpoints, approval processing, audit inserts, membership reads and only `users.id/is_active` column reads.
+- `agentdock_dispatcher`: non-login owner of the trigger function, with only `INSERT` on `task_dispatch`.
+- `agentdock_migrator`: owns the schema objects it creates and applies Alembic revisions; never use it for API or worker traffic.
 
-Do not grant `anon` or `authenticated` access to these tables. AgentDock's FastAPI backend talks directly to PostgreSQL; the Android application must talk to the AgentDock API, not directly to these tables.
+Every tenant-owned table is protected by enabled and forced RLS. API/worker roles must not own tenant tables and must remain `NOBYPASSRLS`. The runtime role cannot access the worker queue directly. Do not grant `anon` or `authenticated` access to these application tables. Android must call the AgentDock API and never connect directly to Supabase Postgres.
 
-Every tenant-owned table is protected by enabled and forced RLS. The API/worker roles must not own these tables and must remain `NOBYPASSRLS`. The dispatcher trigger function is owned by the non-login `agentdock_dispatcher` role; the API runtime must not receive direct access to `task_dispatch`.
 
 ## 6. Verify the real Supabase database
 
@@ -161,14 +142,16 @@ ORDER BY rolname;
 
 SELECT
   has_table_privilege('agentdock_runtime', 'task_dispatch', 'SELECT') AS runtime_can_read_dispatch,
-  has_table_privilege('agentdock_worker', 'task_dispatch', 'SELECT') AS worker_can_read_dispatch;
+  has_table_privilege('agentdock_worker', 'task_dispatch', 'SELECT') AS worker_can_read_dispatch,
+  has_table_privilege('agentdock_runtime', 'tasks', 'INSERT') AS runtime_can_create_tasks,
+  has_table_privilege('agentdock_worker', 'tasks', 'UPDATE') AS worker_can_update_tasks;
 ```
 
 Expected results:
-- `alembic_version` contains `20261113_0007`.
-- The public schema contains the 14 AgentDock tables documented in `backend/README.md`.
+- `alembic_version` contains `20261112_0008`.
+- The public schema contains the 14 AgentDock application tables plus Alembic's `alembic_version` table.
 - `agentdock_dispatcher` has `rolcanlogin = false`; all four custom roles have `rolsuper = false` and `rolbypassrls = false`.
-- `runtime_can_read_dispatch = false`; `worker_can_read_dispatch = true`.
+- `runtime_can_read_dispatch = false`; `worker_can_read_dispatch = true`; API can create tasks and worker can update task status.
 
 The Supabase dashboard's own migration list is not the Alembic history. Verify this deployment through `alembic_version`.
 
