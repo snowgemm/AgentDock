@@ -8,7 +8,7 @@ This guide deploys the existing Alembic schema from the `test` branch to the Sup
 - PostgreSQL version: 17.11
 - Region: `ap-southeast-1`
 - Database name: **`postgres`**
-- At inspection time, `public` contained no AgentDock tables, no Alembic migration history existed, and the four AgentDock roles below did not exist.
+- Verified on 2026-11-12: `public` contains no AgentDock tables and has no Alembic migration history. The four AgentDock roles have now been created with `NOLOGIN`; their database/schema grants and dispatcher membership have been verified. They cannot authenticate until the three login roles receive unique passwords.
 - The Supabase project is on the Free plan. This guide creates no Supabase/Render resources and changes no plan.
 
 The local CI database is named `agentdock`; Supabase's default database is named `postgres`. **Do not copy the local CI database name into a Supabase connection string or GRANT statement.**
@@ -27,11 +27,11 @@ References:
 
 ## 2. Provision least-privilege PostgreSQL roles
 
-Open **Supabase Dashboard → SQL Editor** and run this once while connected as the project administrator. The current target was checked and these four roles were absent.
+The four roles and base privileges were provisioned on the project on 2026-11-12 and verified. The SQL below documents the exact intended state; do not rerun `CREATE ROLE` on this already-provisioned project. For a fresh project, run it once as the project administrator.
 
 ```sql
 CREATE ROLE agentdock_migrator
-  LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+  NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
 
 CREATE ROLE agentdock_runtime
   LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
@@ -52,12 +52,12 @@ GRANT USAGE, CREATE ON SCHEMA public TO agentdock_migrator;
 GRANT USAGE ON SCHEMA public TO agentdock_runtime, agentdock_worker;
 ```
 
-Next, assign a different randomly generated password to each login role using your password manager. Execute the following statements after replacing each placeholder; do not reuse the same password:
+After generating three different random passwords with your password manager, enable only the three service login roles and set each password. Run these statements in Supabase SQL Editor. The dispatcher role must remain `NOLOGIN`:
 
 ```sql
-ALTER ROLE agentdock_migrator PASSWORD 'REPLACE_WITH_UNIQUE_RANDOM_PASSWORD';
-ALTER ROLE agentdock_runtime PASSWORD 'REPLACE_WITH_UNIQUE_RANDOM_PASSWORD';
-ALTER ROLE agentdock_worker PASSWORD 'REPLACE_WITH_UNIQUE_RANDOM_PASSWORD';
+ALTER ROLE agentdock_migrator LOGIN PASSWORD 'UNIQUE_PASSWORD_FOR_MIGRATOR';
+ALTER ROLE agentdock_runtime LOGIN PASSWORD 'UNIQUE_PASSWORD_FOR_RUNTIME';
+ALTER ROLE agentdock_worker LOGIN PASSWORD 'UNIQUE_PASSWORD_FOR_WORKER';
 ```
 
 The `agentdock_dispatcher` role must remain `NOLOGIN`. It is only the isolated owner of the task-dispatch trigger function. Do not grant `BYPASSRLS`, superuser, role-creation or schema-ownership privileges to the API or worker roles.
@@ -196,7 +196,7 @@ The worker will **not** execute model tasks until an approved handler/provider i
 
 - `.github/workflows/backend-ci.yml` tests migrations and permissions against a disposable PostgreSQL 17 service. It does not deploy to Supabase.
 - Never point backend CI's rollback/re-apply test at the Supabase project.
-- No Supabase schema or role was changed when this guide was written. Run each database-changing step deliberately and verify it before configuring services.
+- The four `NOLOGIN` AgentDock roles and base database/schema grants were provisioned and verified on 2026-11-12. No application tables or Alembic migrations have yet been applied. Keep the three service roles unable to login until you have set unique passwords and stored their connection URLs in the protected secret store.
 - A free Render Web Service is suitable for API testing but sleeps after 15 minutes without inbound traffic. Free Render does not offer a free always-on Background Worker. Use a local worker for development/testing or choose an always-on worker host only after reviewing its cost and availability. Do not assume an always-on worker can be run continuously on Render Free.
 
 Render free-tier limits: https://render.com/docs/free
