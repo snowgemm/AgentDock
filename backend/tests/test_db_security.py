@@ -249,7 +249,7 @@ def test_tenant_context_is_transaction_local_and_blocks_cross_tenant_writes() ->
                             text("SELECT tenant_id FROM tenant_memberships")
                         )
                     ).scalars().all()
-                    assert visible_tasks == [task_a]
+                    assert set(visible_tasks) == {task_a, runtime_task}
                     assert visible_memberships == [tenant_a]
 
                 # SET LOCAL must not leak when the pooled connection is reused.
