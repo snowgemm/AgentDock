@@ -84,6 +84,9 @@ jobs:
             NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
           CREATE ROLE agentdock_dispatcher NOLOGIN
             NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+          -- Supabase defines these roles by default; provide no-privilege equivalents in CI.
+          CREATE ROLE anon NOLOGIN;
+          CREATE ROLE authenticated NOLOGIN;
           GRANT agentdock_dispatcher TO agentdock_migrator;
           GRANT CONNECT ON DATABASE agentdock TO agentdock_migrator, agentdock_runtime, agentdock_worker;
           GRANT CREATE ON DATABASE agentdock TO agentdock_migrator;
