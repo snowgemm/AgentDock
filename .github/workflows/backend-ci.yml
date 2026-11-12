@@ -101,36 +101,6 @@ jobs:
           python -m alembic downgrade base
           python -m alembic upgrade head
 
-      - name: Grant least-privilege runtime table access
-        env:
-          PGPASSWORD: ci-migrator-password
-        run: |
-          psql -h 127.0.0.1 -U agentdock_migrator -d agentdock -v ON_ERROR_STOP=1 <<'SQL'
-          GRANT SELECT, INSERT ON TABLE tenants TO agentdock_runtime;
-          GRANT SELECT, INSERT ON TABLE users TO agentdock_runtime;
-          GRANT SELECT, INSERT, UPDATE
-            ON TABLE auth_identities, user_sessions, session_tokens
-            TO agentdock_runtime;
-          GRANT SELECT, INSERT, UPDATE, DELETE
-            ON TABLE tenant_memberships, tasks, task_events, idempotency_records
-            TO agentdock_runtime;
-          -- Worker: routing/lease table (no tenant content) plus tenant tables under RLS.
-          GRANT SELECT, UPDATE ON TABLE task_dispatch TO agentdock_worker;
-          GRANT SELECT ON TABLE tasks TO agentdock_worker;
-          GRANT UPDATE (status, updated_at) ON TABLE tasks TO agentdock_worker;
-          GRANT SELECT, INSERT ON TABLE task_events TO agentdock_worker;
-          GRANT SELECT, INSERT, UPDATE ON TABLE task_receipts TO agentdock_worker;
-          GRANT SELECT, INSERT, UPDATE ON TABLE task_checkpoints TO agentdock_worker;
-          -- Approvals and audit: the API decides approvals; the worker requests and spends them.
-          GRANT SELECT, UPDATE ON TABLE approvals TO agentdock_runtime;
-          GRANT SELECT, INSERT ON TABLE audit_events TO agentdock_runtime;
-          GRANT SELECT, INSERT, UPDATE ON TABLE approvals TO agentdock_worker;
-          GRANT SELECT, INSERT ON TABLE audit_events TO agentdock_worker;
-          -- Policy re-checks read the task creator's membership and active flag.
-          GRANT SELECT ON TABLE tenant_memberships TO agentdock_worker;
-          GRANT SELECT (id, is_active) ON TABLE users TO agentdock_worker;
-          SQL
-
       - name: Verify migration head and ORM schema
         run: |
           python -m alembic current
